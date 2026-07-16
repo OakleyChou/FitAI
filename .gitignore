@@ -40,4 +40,4 @@ backend/alembic/versions/__pycache__/
 
 # Streamlit
 frontend/.streamlit/secrets.toml
-claude/settings.local.json
+.claude/settings.local.json
