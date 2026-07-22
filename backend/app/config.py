@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
     anthropic_model_cheap: str = "claude-haiku-4-5-20251001"
 
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o"
+    openai_model_cheap: str = "gpt-4o-mini"
+
     # Langfuse
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
