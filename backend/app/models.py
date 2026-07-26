@@ -46,10 +46,11 @@ class WeightLog(Base):
 
 
 class PromptVersion(Base):
-    """Prompt 版本紀錄。name 用來區分不同用途的 prompt（例如
-    "food_extraction_system_prompt"），同一個 name 底下可以有多筆不同
-    version，is_active 標記目前生效的是哪一筆——換版本時新增一筆新資料、
-    把舊的 is_active 改 False，而不是直接覆蓋舊內容。
+    """Prompt 版本紀錄。
+    name: 用來區分不同用途的 prompt（例如:"food_extraction_system_prompt"），
+        同一個 name 底下可以有多筆不同version
+    is_active: 標記目前生效的是哪一筆——換版本時新增一筆新資料、
+        把舊的 is_active 改 False，而不是直接覆蓋舊內容。
     """
 
     __tablename__ = "prompt_versions"
