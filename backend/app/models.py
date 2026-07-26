@@ -43,3 +43,20 @@ class WeightLog(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     weight_kg: Mapped[float] = mapped_column()
     logged_at: Mapped[datetime] = mapped_column()
+
+
+class PromptVersion(Base):
+    """Prompt 版本紀錄。name 用來區分不同用途的 prompt（例如
+    "food_extraction_system_prompt"），同一個 name 底下可以有多筆不同
+    version，is_active 標記目前生效的是哪一筆——換版本時新增一筆新資料、
+    把舊的 is_active 改 False，而不是直接覆蓋舊內容。
+    """
+
+    __tablename__ = "prompt_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    version: Mapped[int]
+    content: Mapped[str]
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    is_active: Mapped[bool] = mapped_column(default=True)

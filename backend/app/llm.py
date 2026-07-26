@@ -1,10 +1,65 @@
 import instructor
 from openai import OpenAI
 from pydantic import BaseModel, Field
+from langfuse.decorators import langfuse_context, observe
 
 from app.config import settings
+from app.database import SessionLocal
+from app.models import PromptVersion
 
 client = instructor.from_openai(OpenAI(api_key=settings.openai_api_key))
+
+FOOD_EXTRACTION_PROMPT_NAME = "food_extraction_system_prompt"
+
+
+def get_active_prompt(name: str) -> str:
+    """查詢資料庫裡這個 name 底下版本號最大的 prompt 內容。
+
+    目前用 version 決定要用哪一版（永遠取最新版）；is_active 欄位保留在資料表裡，
+    之後如果需要「不換版本號也能切換/回滾」的彈性，可以再改回用它篩選。
+    """
+    # 因為不在 FastAPI route裡，需要手動另外開session
+    db = SessionLocal()
+    try:
+        prompt = (
+            db.query(PromptVersion)
+            .filter(PromptVersion.name == name)
+            .order_by(PromptVersion.version.desc())
+            .first()
+        )
+        if prompt is None:
+            raise ValueError(f"找不到 name={name!r} 的 prompt version")
+        return prompt.content
+    finally:
+        db.close()
+
+
+def add_prompt_version(name: str, content: str) -> PromptVersion:
+    """新增一個 prompt 版本—
+    以這個 name 的目前最大版本號+1」當作新版本號
+    """
+    db = SessionLocal()
+    try:
+        latest = (
+            db.query(PromptVersion)
+            .filter(PromptVersion.name == name)
+            .order_by(PromptVersion.version.desc())
+            .first()
+        )
+        next_version = (latest.version + 1) if latest is not None else 1
+
+        new_prompt = PromptVersion(
+            name=name,
+            version=next_version,
+            content=content,
+            is_active=True,
+        )
+        db.add(new_prompt)
+        db.commit()
+        db.refresh(new_prompt)
+        return new_prompt
+    finally:
+        db.close()
 
 
 class FoodItem(BaseModel):
@@ -31,7 +86,7 @@ class FoodLogExtraction(BaseModel):
     carbs_g: float = Field(ge=0)
     fat_g: float = Field(ge=0)
 
-
+@observe()
 def extract_food_log(raw_text: str) -> FoodLogExtraction:
     """把自然語言飲食描述轉成結構化的 FoodLogExtraction。
 
@@ -43,12 +98,7 @@ def extract_food_log(raw_text: str) -> FoodLogExtraction:
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "你是一個專業的營養分析助手。使用者輸入可能包含多個食物項目，"
-                    "請逐一辨識所有提到的食物項目，針對每一項各自估算營養素（不用加總）。"
-                    "若份量不明時，用一般常見的份量估算。"
-                    "熱量以大卡（kcal）為單位，重量以公克為單位。"
-                ),
+                "content": get_active_prompt(FOOD_EXTRACTION_PROMPT_NAME),
             },
             {"role": "user", "content": raw_text},
         ],
@@ -65,5 +115,6 @@ def extract_food_log(raw_text: str) -> FoodLogExtraction:
 
 
 if __name__ == "__main__":
-    result = extract_food_log("我中午吃了一碗雞肉飯加一杯珍珠奶茶")
+    result = extract_food_log("我中午吃了一碗雞肉飯加一個布丁")
     print(result)
+    langfuse_context.flush()  # 強制把排隊中的 trace 資料立刻送出，不等背景批次處理

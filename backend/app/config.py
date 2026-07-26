@@ -1,4 +1,10 @@
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# pydantic-settings 只把 .env 讀進 Settings 物件，不會寫進 os.environ。
+# Langfuse SDK 是直接讀 os.environ 找 key，所以這裡額外用 python-dotenv 載入一次，
+# 讓 .env 裡的值也變成真正的環境變數。
+load_dotenv()
 
 
 class Settings(BaseSettings):
