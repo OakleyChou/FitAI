@@ -1,5 +1,5 @@
 import instructor
-from openai import OpenAI
+from langfuse.openai import openai
 from pydantic import BaseModel, Field
 from langfuse.decorators import langfuse_context, observe
 
@@ -7,7 +7,10 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import PromptVersion
 
-client = instructor.from_openai(OpenAI(api_key=settings.openai_api_key))
+# 用 langfuse.openai 包過的 openai client，取代原生 openai.OpenAI
+# LLM 呼叫會自動被記錄成 Generation 類型的 observation，包含 token 用量/成本
+# 也可以在 langfuse 上更新 prompt，不用進資料庫更新
+client = instructor.from_openai(openai.OpenAI(api_key=settings.openai_api_key))
 
 FOOD_EXTRACTION_PROMPT_NAME = "food_extraction_system_prompt"
 
@@ -115,6 +118,6 @@ def extract_food_log(raw_text: str) -> FoodLogExtraction:
 
 
 if __name__ == "__main__":
-    result = extract_food_log("我中午吃了一碗雞肉飯加一個布丁")
+    result = extract_food_log("我晚上吃了一個漢堡加一杯可樂")
     print(result)
     langfuse_context.flush()  # 強制把排隊中的 trace 資料立刻送出，不等背景批次處理
