@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     openai_model_cheap: str = "gpt-4o-mini"
 
+    # Embedding —— 換模型的話 models.EMBEDDING_DIM 要跟著改，且既有向量全部要重算
+    openai_embedding_model: str = "text-embedding-3-small"
+    embedding_batch_size: int = 100
+
     # Langfuse
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
