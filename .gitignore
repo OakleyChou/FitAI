@@ -41,3 +41,6 @@ backend/alembic/versions/__pycache__/
 # Streamlit
 frontend/.streamlit/secrets.toml
 .claude/settings.local.json
+
+# RAG 原始資料——第三方發布的資料集，不進 repo（體積大且非本專案產出）
+backend/data/
