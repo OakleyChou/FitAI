@@ -44,3 +44,10 @@ frontend/.streamlit/secrets.toml
 
 # RAG 原始資料——第三方發布的資料集，不進 repo（體積大且非本專案產出）
 backend/data/
+
+# Jupyter——探索用的暫存 notebook，不是專案產出
+*.ipynb
+.ipynb_checkpoints/
+
+# 進度表匯出檔（真正的來源是 Google Sheet）
+fitai_schedule_*.csv
