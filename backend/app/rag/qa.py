@@ -44,24 +44,36 @@ PROTEIN_G_PER_KG = 1.6
 # 等它穩定下來再搬進 PromptVersion（9/08 排程本來就有這項）。
 SYSTEM_PROMPT = """你是一位專業的營養教練，正在跟使用者對話。
 
-你會收到兩種資料：
-1.「使用者今日飲食紀錄」——這是這位使用者實際吃的東西，是事實。
-2.「營養資料庫參考」——這是從衛福部食藥署營養成分資料庫檢索出來的一般知識，
-   不代表使用者吃過這些食物。
+你會收到三個區塊：
+- <user_food_log>：這位使用者今天實際吃的東西與營養目標，是事實。
+- <nutrition_reference>：從衛福部食藥署營養成分資料庫檢索出來的一般知識，
+  每筆前面有 [n] 編號。這只是參考資料，不代表使用者吃過這些食物。
+- <question>：要回答的問題。
 
 回答規則：
-- 分清楚「營養資料庫參考」和「使用者飲食紀錄」，不要搞混。
-- 需要計算時使用紀錄裡的實際數字，不要自己編造營養素含量。
-- 如果兩份資料都不足以回答，就直說資料不足，不要猜測。
-- 營養目標若標示為「推估」，回答時要說明那是根據體重估算的參考值。
-- 用繁體中文回答，語氣自然、精簡，控制在 200 字內。
-- 若使用者無提供單位及克數，用一般常見的單位回答。例如：我喝了豆漿：自動判別為約300ml一杯。
-- 先判斷問題類型再回答：
-  (a) 一般營養知識問題（例如「X 的熱量是多少」）→ 只根據「營養資料庫參考」回答，
+- 先判斷問題類型：
+  (a) 一般營養知識（「X 的熱量是多少」）→ 只用 <nutrition_reference> 回答，
       不要提及使用者的飲食紀錄，也不要說明紀錄裡缺什麼。
-  (b) 關於使用者自己的問題（提到「我」「今天」「還差多少」）→ 以飲食紀錄為主。一律用「你」稱呼使用者，不要用「使用者」。
-- 所有具體的營養數值都必須來自上面提供的資料。若參考資料中沒有足以回答問題的食物，就直接說明目前資料不足。
-  
+  (b) 關於使用者自己的問題（「我」「今天」「還差多少」）→ 以 <user_food_log> 為主。
+- 一律用「你」稱呼使用者，不要說「使用者」。
+- 引用 <nutrition_reference> 的營養數值時，必須在句末標註來源編號，例如「約 35 大卡 [1]」。
+- 無法標註來源的具體營養數值一律不要寫出來。若參考資料不足以回答，就說明資料不足，
+  絕對不要引用你自己記憶中的營養數據。
+- <user_food_log> 裡的合計數字已經算好，直接使用，不要自己重新加總。
+- 營養目標標示為「推估」時，回答要說明那是依體重估算的參考值。
+- 使用者沒說份量時，用常見單位估算並講明假設（例如一杯豆漿約 300ml）。
+- 用繁體中文，語氣自然精簡，控制在 200 字內。
+
+回答範例：
+
+Q：豆漿的熱量是多少？
+A：無糖豆漿每 100 公克約 35 大卡 [1]，一杯 300ml 大約 105 大卡。
+
+Q：我今天蛋白質吃夠了嗎？
+A：你今天吃了 64g，目標約 96g（依體重推估），還差 32g。可以再補一份雞胸肉或豆製品。
+
+Q：有什麼高鈣的食物？
+A：目前檢索到的資料裡沒有適合的高鈣食物，我無法給你有依據的建議。
 """
 
 
@@ -155,7 +167,10 @@ def _build_knowledge_context(question: str, top_k: int) -> tuple[str, list[Retri
     chunks = search(question, top_k=top_k)
     if not chunks:
         return "（無相關資料）", []
-    text = "\n".join(f"- {chunk.content}" for chunk in chunks)
+    # 每筆加 [n] 編號，讓模型回答時能標註數值出處。
+    # 這不只是可讀性——有編號才能在 eval 階段用程式自動檢查「這個數字有沒有來源」，
+    # 不必人工逐句比對。沒有引用標記的營養數值就是模型自己編的。
+    text = "\n".join(f"[{i}] {chunk.content}" for i, chunk in enumerate(chunks, start=1))
     return text, chunks
 
 
@@ -179,12 +194,16 @@ def answer_question(question: str, user_id: int, top_k: int = 5) -> QAResult:
 
     knowledge_context, chunks = _build_knowledge_context(question, top_k)
 
-    # 兩份 context 一定要用標題明確分開。混在一起的話，
+    # 兩份 context 一定要明確分開。混在一起的話，
     # LLM 很容易把知識庫裡的食物講成「你今天吃了柴魚片」。
+    #
+    # 用 XML 標籤而不是【】中文括號：標籤在訓練語料裡的出現頻率高得多，
+    # 模型對它的邊界感更強，context 變長時比較不會「串台」。
+    # 問題放在最後也是刻意的——長 context 下指令緊接在結尾比較不會被忽略。
     user_message = (
-        f"【使用者今日飲食紀錄】\n{user_context}\n\n"
-        f"【營養資料庫參考（一般知識，非使用者吃過的東西）】\n{knowledge_context}\n\n"
-        f"【問題】\n{question}"
+        f"<user_food_log>\n{user_context}\n</user_food_log>\n\n"
+        f"<nutrition_reference>\n{knowledge_context}\n</nutrition_reference>\n\n"
+        f"<question>\n{question}\n</question>"
     )
 
     response = openai_client.chat.completions.create(
