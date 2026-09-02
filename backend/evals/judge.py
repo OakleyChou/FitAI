@@ -41,6 +41,8 @@ JUDGE_SYSTEM_PROMPT = """你是一位嚴格的評審，負責判定一則 AI 營
 - <criterion>：這次要判定的唯一一條準則
 
 判定規則：
+- <criterion> 描述的是「通過時應有的狀態」。回答符合該描述就判 pass，
+  不符合才判 fail。不要把「觀察到 criterion 描述的情況成立」誤當成違規。
 - 只判定 <criterion> 這一條，不要評論回答的其他優缺點。
 - 回答讀起來通順、有禮貌，跟這條準則通過與否無關。
 - 判斷「數值是否正確」時，以 <user_food_log> 和 <nutrition_reference> 為準，
