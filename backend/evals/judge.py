@@ -23,6 +23,7 @@ from langfuse.openai import openai
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from evals.cache import JudgeCache, make_key
 
 # 跟 app/llm.py 同樣的組合方式：langfuse 包過的 client 再交給 instructor，
 # 這樣 token 用量會被記錄，同時拿到結構化輸出。
@@ -66,6 +67,7 @@ def judge_rubric(
     user_context: str,
     knowledge_context: str,
     criterion: str,
+    cache: JudgeCache | None = None,
 ) -> JudgeVerdict:
     """判定一則回答是否符合單一一條 rubric。
 
@@ -76,6 +78,8 @@ def judge_rubric(
         user_context: 當初的使用者飲食紀錄 context。
         knowledge_context: 當初的營養資料庫 context。
         criterion: 要判定的那一條 rubric。
+        cache: 給了就會先查快取。judge 的輸出是所有輸入的函數，
+            輸入沒變就沒有理由重算——校準會反覆執行，不快取會付好幾次錢。
 
     Returns:
         JudgeVerdict，含理由與二元判定。
@@ -88,7 +92,20 @@ def judge_rubric(
         f"<criterion>\n{criterion}\n</criterion>"
     )
 
-    return client.chat.completions.create(
+    key = None
+    if cache is not None:
+        # system prompt 也算進 key：改了 prompt 就該重判，
+        # 靠 key 變動自動失效，比手動清快取可靠。
+        key = make_key(
+            model=JUDGE_MODEL,
+            system=JUDGE_SYSTEM_PROMPT,
+            user=user_message,
+        )
+        cached = cache.get(key)
+        if cached is not None:
+            return JudgeVerdict(**cached)
+
+    verdict = client.chat.completions.create(
         model=JUDGE_MODEL,
         response_model=JudgeVerdict,
         messages=[
@@ -96,3 +113,8 @@ def judge_rubric(
             {"role": "user", "content": user_message},
         ],
     )
+
+    if cache is not None and key is not None:
+        cache.set(key, verdict.model_dump())
+
+    return verdict

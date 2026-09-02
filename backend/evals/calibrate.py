@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 from app.rag.qa import build_contexts
+from evals.cache import JudgeCache
 from evals.judge import judge_rubric
 
 VALID_LABELS = {"pass", "fail"}
@@ -62,6 +63,10 @@ def main() -> None:
     # 答案一定要用歸檔的那個，否則 judge 跟人工看的不是同一份東西。
     context_cache: dict[str, tuple[str, str]] = {}
 
+    # judge 判定的快取。校準常常要反覆跑（改一條判準就重跑整批），
+    # 輸入沒變的列直接讀快取，不重複付費。
+    cache = JudgeCache()
+
     # 以「fail」為陽性：evals 的目的是抓問題，抓到問題才是有價值的偵測。
     tp = fn = fp = tn = 0
     disagreements: list[dict] = []
@@ -79,6 +84,7 @@ def main() -> None:
             user_context=user_ctx,
             knowledge_context=know_ctx,
             criterion=row["rubric"],
+            cache=cache,
         )
 
         human = row["label"].strip().lower()
@@ -104,7 +110,7 @@ def main() -> None:
     tnr = tn / (tn + fp) if (tn + fp) else float("nan")
 
     print("\n" + "=" * 66)
-    print(f"樣本數：{total}\n")
+    print(f"樣本數：{total}    {cache.summary()}\n")
     print("                judge fail   judge pass")
     print(f"人工 fail          {tp:^10}   {fn:^10}")
     print(f"人工 pass          {fp:^10}   {tn:^10}\n")
