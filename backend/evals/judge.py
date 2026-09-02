@@ -68,6 +68,7 @@ def judge_rubric(
     knowledge_context: str,
     criterion: str,
     cache: JudgeCache | None = None,
+    model: str = JUDGE_MODEL,
 ) -> JudgeVerdict:
     """判定一則回答是否符合單一一條 rubric。
 
@@ -80,6 +81,8 @@ def judge_rubric(
         criterion: 要判定的那一條 rubric。
         cache: 給了就會先查快取。judge 的輸出是所有輸入的函數，
             輸入沒變就沒有理由重算——校準會反覆執行，不快取會付好幾次錢。
+        model: 判官模型。model 已納入快取 key，所以換模型會有自己的快取空間，
+            不會跟別的模型的判定混在一起。
 
     Returns:
         JudgeVerdict，含理由與二元判定。
@@ -97,7 +100,7 @@ def judge_rubric(
         # system prompt 也算進 key：改了 prompt 就該重判，
         # 靠 key 變動自動失效，比手動清快取可靠。
         key = make_key(
-            model=JUDGE_MODEL,
+            model=model,
             system=JUDGE_SYSTEM_PROMPT,
             user=user_message,
         )
@@ -106,7 +109,7 @@ def judge_rubric(
             return JudgeVerdict(**cached)
 
     verdict = client.chat.completions.create(
-        model=JUDGE_MODEL,
+        model=model,
         response_model=JudgeVerdict,
         messages=[
             {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
