@@ -174,6 +174,29 @@ def _build_knowledge_context(question: str, top_k: int) -> tuple[str, list[Retri
     return text, chunks
 
 
+def build_contexts(
+    question: str, user_id: int, top_k: int = 5
+) -> tuple[str, str, list[RetrievedChunk]]:
+    """組出送進 prompt 的兩份 context。
+
+    抽成公開函式是為了讓 eval 的 judge 也能用。關鍵性質是**這個函式可重現**：
+    user_context 來自 SQL、knowledge_context 來自向量檢索，
+    給定同樣的資料庫狀態就會得到同樣的結果。
+
+    對照之下 answer_question() 的輸出**不可重現**（LLM 有隨機性，
+    實測同一題三次跑出兩種不同行為）。所以 eval 歸檔時只需要存答案，
+    context 之後要用再重算就好。
+    """
+    db = SessionLocal()
+    try:
+        user_context = _build_user_context(db, user_id)
+    finally:
+        db.close()
+
+    knowledge_context, chunks = _build_knowledge_context(question, top_k)
+    return user_context, knowledge_context, chunks
+
+
 @observe()
 def answer_question(question: str, user_id: int, top_k: int = 5) -> QAResult:
     """回答一個飲食相關問題。
@@ -186,13 +209,7 @@ def answer_question(question: str, user_id: int, top_k: int = 5) -> QAResult:
     Returns:
         QAResult，含最終答案與兩份 context（除錯與 eval 用）。
     """
-    db = SessionLocal()
-    try:
-        user_context = _build_user_context(db, user_id)
-    finally:
-        db.close()
-
-    knowledge_context, chunks = _build_knowledge_context(question, top_k)
+    user_context, knowledge_context, chunks = build_contexts(question, user_id, top_k)
 
     # 兩份 context 一定要明確分開。混在一起的話，
     # LLM 很容易把知識庫裡的食物講成「你今天吃了柴魚片」。
