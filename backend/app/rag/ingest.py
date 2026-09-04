@@ -6,7 +6,7 @@ import pandas as pd
 
 from app.database import SessionLocal
 from app.models import KnowledgeChunk
-from app.rag.chunking import COL_CATEGORY, COL_ID, food_record_to_text
+from app.rag.chunking import COL_CATEGORY, COL_ID, COL_NAME, food_record_to_text
 from app.rag.embedding import embed_texts
 
 # 食藥署食品營養成分資料庫。用常數而不是每次傳字串，避免打錯字造成
@@ -43,6 +43,10 @@ def _build_meta(record: dict) -> dict:
     """
     meta = {
         "food_id": record[COL_ID],
+        # name 是接 agent 工具時才發現要的：工具回傳結構化的 FoodItem，
+        # 需要單獨的名稱欄位。名稱雖然也在 content 裡，但從那段中文句子
+        # 用字串切割還原名稱很脆弱，格式一改就壞。
+        "name": record[COL_NAME],
         "category": record[COL_CATEGORY],
     }
     for col, key in META_KEYS.items():

@@ -103,17 +103,23 @@ def _local_day_range_utc(days_ago: int = 0) -> tuple[datetime, datetime]:
     return to_db(start_local), to_db(end_local)
 
 
-def _build_user_context(db: Session, user_id: int) -> str:
-    """把使用者今天的飲食紀錄與目標整理成一段文字。
+def _build_user_context(db: Session, user_id: int, days_back: int = 0) -> str:
+    """把使用者某一天的飲食紀錄與目標整理成一段文字。
 
     刻意輸出「人看得懂的文字」而不是 JSON：LLM 讀自然語言的表現比讀巢狀結構好，
     而且之後在 Langfuse 上檢視 trace 時，人也比較容易一眼看出餵了什麼進去。
+
+    Args:
+        days_back: 往前推幾天。0 是今天、1 是昨天，依台北時間計算。
+            agent 的 query_food_logs 工具需要查昨天，所以這裡開放參數；
+            build_contexts 仍用預設值 0，既有行為不變。
     """
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         return "（查無此使用者）"
 
-    start, end = _local_day_range_utc()
+    day = datetime.now(LOCAL_TZ).date() - timedelta(days=days_back)
+    start, end = _local_day_range_utc(days_back)
     logs = (
         db.query(FoodLog)
         .filter(
@@ -125,12 +131,15 @@ def _build_user_context(db: Session, user_id: int) -> str:
         .all()
     )
 
-    lines = [f"日期：{datetime.now(LOCAL_TZ).date()}（台北時間）"]
+    # 標籤依 days_back 產生，不要寫死「今日」——
+    # 查昨天的紀錄卻標成「今日合計」會直接誤導模型。
+    label = {0: "今日", 1: "昨日"}.get(days_back, f"{days_back} 天前")
+    lines = [f"日期：{day}（台北時間，{label}）"]
 
     if not logs:
-        lines.append("今日尚無飲食紀錄。")
+        lines.append(f"{label}尚無飲食紀錄。")
     else:
-        lines.append("今日已記錄的餐點：")
+        lines.append(f"{label}已記錄的餐點：")
         for log in logs:
             # 存的是 naive UTC，要轉回台北時間才是使用者認知的用餐時間
             local_time = log.logged_at.replace(tzinfo=timezone.utc).astimezone(LOCAL_TZ)
@@ -141,7 +150,7 @@ def _build_user_context(db: Session, user_id: int) -> str:
             )
         # 加總在 Python 端算，不讓 LLM 自己加——跟 extract_food_log 同樣的理由
         lines.append(
-            f"今日合計：熱量 {sum(x.calories for x in logs):.0f} 大卡、"
+            f"{label}合計：熱量 {sum(x.calories for x in logs):.0f} 大卡、"
             f"蛋白質 {sum(x.protein_g for x in logs):.0f}g、"
             f"碳水 {sum(x.carbs_g for x in logs):.0f}g、"
             f"脂肪 {sum(x.fat_g for x in logs):.0f}g"
