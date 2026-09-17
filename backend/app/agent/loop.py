@@ -17,10 +17,25 @@
    少回一個就報錯。
 3. 最後一輪要傳 tool_choice="none"，強制模型產出文字。
    沒有這層保險，模型可能用完次數還在要求呼叫工具，你手上什麼都沒有。
+
+## 錯誤要先分類再處理
+
+決定一個錯誤該怎麼辦，看的是「**模型有沒有能力修它**」：
+
+- **模型能修**（參數名稱錯、值不在 enum、區間顛倒）→ 把訊息當工具結果回給它，
+  讓它自己改。這是 function calling 少數能自我修正的地方。
+- **模型修不了**（DB 連不上、API key 失效）→ **不要**把細節回給模型。
+  它會換個參數再試一次，然後再失敗，把次數用完，最後編一個答案。
+  只告訴它「這個工具暫時不可用」，讓它用其他資訊盡量回答。
+
+錯誤訊息有兩種觀眾：給模型的要具體可據以修正，給使用者的不能洩漏內部細節。
+使用者永遠不該看到 TypeError 或連線字串。
 """
 
 import inspect
 import json
+import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,6 +50,24 @@ MAX_ITERATIONS = 3
 # 工具結果寫進紀錄時截短。完整結果仍然會送給模型，這裡只影響除錯用的紀錄——
 # summarize_food_logs 的輸出可能上千字，不截短會讓 trace 難以閱讀。
 RESULT_PREVIEW_CHARS = 160
+
+# 單次 LLM 呼叫的上限。OpenAI SDK 內建重試（預設 2 次、帶 backoff），
+# 所以這裡只需設 timeout，不用自己寫重試邏輯。
+LLM_TIMEOUT_SECONDS = 30.0
+
+# 整個迴圈的 wall clock 上限。三輪 × (LLM + 工具查詢) 最壞情況可能拖很久，
+# 接成 API 之後那會直接卡住 web request。
+LOOP_BUDGET_SECONDS = 90.0
+
+# 同一個工具連續失敗幾次就放棄。不設限的話，模型會把三輪次數
+# 全耗在同一個壞掉的工具上，最後什麼答案都給不出來。
+MAX_TOOL_FAILURES = 2
+
+# 模型看得懂、也改得掉的錯誤。這些的訊息會原樣回給模型讓它重試。
+#   TypeError  ← 參數名稱或數量不對（模型編了不存在的參數）
+#   ValueError ← 工具自己的驗證失敗（nutrient 不在白名單、區間顛倒）
+# 其他例外一律視為系統層問題：模型改參數也修不好，不該讓它看到細節。
+MODEL_FIXABLE_ERRORS = (TypeError, ValueError)
 
 SYSTEM_PROMPT = """你是一位專業的營養教練，正在跟使用者對話。
 
@@ -68,8 +101,13 @@ SYSTEM_PROMPT = """你是一位專業的營養教練，正在跟使用者對話�
   建議諮詢醫師或營養師。不要給出模稜兩可的建議。
 - 一般的飲食均衡建議不在此限，可以正常回答。
 
+工具失敗時：
+- 某個工具回報「暫時不可用」時，**用已經取得的其他資訊盡量回答**，
+  並明確說明哪一部分查不到。部分答案加上說明，比整個拒絕回答有用得多。
+- 不要因為一個工具壞掉就放棄整個問題，也不要改用你自己記憶中的數據填補。
+
 功能範圍：
-- 使用者描述剛吃了什麼（例如「我剛吃了排骨便當」）時，
+- 使用者描述剛吃了什麼（例如「我剛吃了排骨便當」），
   說明你目前只能查詢與分析，無法代為記錄，請他們使用飲食記錄功能新增。
   不要假裝已經記錄，也不要追問細節。
 """
@@ -91,23 +129,43 @@ class ToolCall:
 
 
 @dataclass
+class _ToolOutcome:
+    """一次工具執行的結果。
+
+    unavailable 把「模型能修的錯」和「系統壞了」分開——
+    前者值得讓模型重試，後者重試幾次都一樣，該直接放棄那個工具。
+    """
+
+    content: str  # 給模型看的，系統錯誤時只有籠統說明
+    error: str | None = None  # 給紀錄看的，保留完整訊息供除錯
+    unavailable: bool = False  # False = 系統層失敗，別再試
+
+
+@dataclass
 class AgentResult:
     answer: str
     tool_calls: list[ToolCall] = field(default_factory=list)
     iterations: int = 0
     hit_limit: bool = False
+    # 系統層失敗的完整訊息。給使用者的 answer 不會包含這些細節，
+    # 但要留下來，否則問題會無聲消失。
+    error: str | None = None
 
 
-def _execute(name: str, arguments: dict[str, Any], user_id: int) -> tuple[str, str | None]:
-    """執行一個工具呼叫，回傳 (給模型看的結果字串, 錯誤訊息或 None)。
+def _execute(name: str, arguments: dict[str, Any], user_id: int) -> _ToolOutcome:
+    """執行一個工具呼叫。
 
-    工具拋例外時不讓它往上炸——把錯誤訊息當成工具結果回給模型，
-    讓它有機會用正確的參數重試。直接拋出去的話使用者只會看到 500，
-    而模型其實有能力自己修正（例如 nutrient 打錯欄位名）。
+    錯誤分兩類處理（見模組 docstring）：
+    模型能修的，訊息原樣回給它重試；修不了的，只回籠統說明並標記 unavailable。
     """
     func = TOOL_REGISTRY.get(name)
     if func is None:
-        return f"錯誤：沒有名為 {name!r} 的工具。", f"unknown tool: {name}"
+        # 模型編了不存在的工具名。列出可用清單讓它能自我修正。
+        available = "、".join(sorted(TOOL_REGISTRY))
+        return _ToolOutcome(
+            content=f"錯誤：沒有名為 {name!r} 的工具。可用的工具：{available}。",
+            error=f"unknown tool: {name}",
+        )
 
     # user_id 由伺服器端注入，不接受模型指定——模型能指定的話，
     # 一句「查 user 2 的紀錄」就會洩漏別人的資料。
@@ -121,38 +179,66 @@ def _execute(name: str, arguments: dict[str, Any], user_id: int) -> tuple[str, s
 
     try:
         result = func(**safe_args)
-    except TypeError as e:
-        # 參數名稱或數量不對，通常是模型編了不存在的參數
-        return f"錯誤：參數不正確（{e}）。請檢查工具的參數說明後重試。", str(e)
-    except ValueError as e:
-        # 工具自己的驗證失敗（例如 nutrient 不在白名單），訊息本身就是給模型的提示
-        return f"錯誤：{e}", str(e)
+    except MODEL_FIXABLE_ERRORS as e:
+        # 訊息本身就是給模型的修正提示，原樣傳遞
+        return _ToolOutcome(
+            content=f"錯誤：{e}。請檢查工具的參數說明後重試。",
+            error=f"{type(e).__name__}: {e}",
+        )
+    except Exception as e:
+        # 資料庫連線失敗、外部服務掛掉之類。模型改參數也修不好，
+        # 而且錯誤內容可能含連線字串等不該外流的資訊。
+        return _ToolOutcome(
+            content=f"錯誤：{name} 目前暫時不可用，請改用其他方式或直接回答。",
+            error=f"{type(e).__name__}: {e}",
+            unavailable=True,
+        )
 
     if isinstance(result, str):
-        return result, None
+        return _ToolOutcome(content=result)
     # FoodItem 的清單轉成 JSON 給模型讀。空清單也要明確講，
     # 否則模型容易當成「沒查到就自己補」。
     if not result:
-        return "查無符合條件的資料。", None
-    return json.dumps([item.__dict__ for item in result], ensure_ascii=False), None
+        return _ToolOutcome(content="查無符合條件的資料。")
+    return _ToolOutcome(
+        content=json.dumps([item.__dict__ for item in result], ensure_ascii=False)
+    )
 
 
 @observe()
 def run_agent(question: str, user_id: int) -> AgentResult:
     """跑一輪 ReAct 迴圈回答問題。
 
+    這個函式**不會拋例外**。未預期的錯誤會轉成給使用者的訊息，
+    完整內容留在 AgentResult.error——接成 API 之後，
+    未捕捉的例外就是 500 加一整串 stack trace 給使用者看。
+
     Args:
         question: 使用者的自然語言問題。
         user_id: 要查誰的資料。由呼叫端提供，不經過模型。
 
     Returns:
-        AgentResult，含答案與完整的工具呼叫紀錄。
+        AgentResult，含答案、工具呼叫紀錄、以及系統層錯誤（若有）。
     """
+    calls: list[ToolCall] = []
+    try:
+        return _run_loop(question, user_id, calls)
+    except Exception as e:
+        # 最外層防護。走到這裡表示迴圈本身出問題（不是工具），
+        # 例如 LLM 服務掛掉或 timeout。給使用者一句話，細節留在 error。
+        return AgentResult(
+            answer="抱歉，系統目前無法處理你的問題，請稍後再試。",
+            tool_calls=calls,
+            error=f"{type(e).__name__}: {e}",
+        )
+
+
+def _run_loop(question: str, user_id: int, calls: list[ToolCall]) -> AgentResult:
+    """迴圈本體。calls 由呼叫端傳入，讓例外發生時仍保留已完成的呼叫紀錄。"""
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
-    calls: list[ToolCall] = []
     # (工具, 參數) → 結果。模型拿到不滿意的結果時有時會原封不動再問一次，
     # 那只會白花錢又把一輪次數用掉。
     #
@@ -160,8 +246,22 @@ def run_agent(question: str, user_id: int) -> AgentResult:
     # 提示訊息會讓模型以為查詢失敗或無資料（實測過，它接著就改用自己的記憶回答）。
     # 把同樣的結果再給它一次，語意上也更誠實——這個查詢的答案就是這個。
     cache: dict[str, str] = {}
+    # 每個工具累積的失敗次數，達到上限就不再執行它
+    failures: dict[str, int] = defaultdict(int)
+    deadline = time.monotonic() + LOOP_BUDGET_SECONDS
 
     for iteration in range(1, MAX_ITERATIONS + 1):
+        if time.monotonic() > deadline:
+            # 超時不算失敗——已經查到的資訊仍然有價值，
+            # 只是沒機會讓模型整理成答案了。
+            return AgentResult(
+                answer="抱歉，這個問題查詢時間過長，可以換個方式問嗎？",
+                tool_calls=calls,
+                iterations=iteration - 1,
+                hit_limit=True,
+                error="loop budget exceeded",
+            )
+
         is_last = iteration == MAX_ITERATIONS
         response = openai_client.chat.completions.create(
             model=settings.openai_model_cheap,
@@ -169,6 +269,7 @@ def run_agent(question: str, user_id: int) -> AgentResult:
             tools=TOOL_SCHEMAS,
             # 最後一輪禁止呼叫工具，強迫它給出文字答案
             tool_choice="none" if is_last else "auto",
+            timeout=LLM_TIMEOUT_SECONDS,
         )
         message = response.choices[0].message
 
@@ -188,25 +289,40 @@ def run_agent(question: str, user_id: int) -> AgentResult:
             try:
                 arguments = json.loads(tc.function.arguments or "{}")
             except json.JSONDecodeError:
+                # 模型產出的 arguments 不是合法 JSON。當成空參數送進去，
+                # 讓工具自己的驗證回報缺什麼，比在這裡猜測好。
                 arguments = {}
 
             signature = f"{name}:{json.dumps(arguments, sort_keys=True, ensure_ascii=False)}"
-            if signature in cache:
-                content, error = cache[signature], "duplicate call"
+
+            if failures[name] >= MAX_TOOL_FAILURES:
+                outcome = _ToolOutcome(
+                    content=f"錯誤：{name} 已連續失敗多次，請不要再呼叫它。",
+                    error="tool disabled after repeated failures",
+                )
+            elif signature in cache:
+                outcome = _ToolOutcome(content=cache[signature], error="duplicate call")
             else:
-                content, error = _execute(name, arguments, user_id)
-                cache[signature] = content
+                outcome = _execute(name, arguments, user_id)
+                cache[signature] = outcome.content
+                if outcome.error is not None:
+                    failures[name] += 1
+                if outcome.unavailable:
+                    # 系統層失敗重試沒有意義，直接讓它達到上限
+                    failures[name] = MAX_TOOL_FAILURES
 
             calls.append(
                 ToolCall(
                     name=name,
                     arguments=arguments,
-                    result_preview=content[:RESULT_PREVIEW_CHARS],
-                    error=error,
+                    result_preview=outcome.content[:RESULT_PREVIEW_CHARS],
+                    error=outcome.error,
                 )
             )
             # 每個 tool_call_id 都必須有對應的結果，少一個 API 會報錯
-            messages.append({"role": "tool", "tool_call_id": tc.id, "content": content})
+            messages.append(
+                {"role": "tool", "tool_call_id": tc.id, "content": outcome.content}
+            )
 
     # 迴圈跑完仍沒拿到文字答案。理論上最後一輪的 tool_choice="none"
     # 已經擋住這條路，留著是防止 API 行為改變時無聲失敗。
