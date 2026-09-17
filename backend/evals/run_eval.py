@@ -1,19 +1,31 @@
-"""跑 eval 資料集：重置資料 → 執行 QA → 套 L1 自動檢查 → 產出待人工標註的 CSV。
+"""跑 eval 資料集：重置資料 → 執行 agent → 套 L1 自動檢查 → 產出待人工標註的 CSV。
 
 跑法（在 backend/ 底下）：
     poetry run python -m evals.run_eval
 
-分兩層（Hamel Husain 的 Level 1 / Level 2）：
+## 評估對象從一個變成三個
 
-L1 自動斷言 —— 確定性、幾行程式、幾乎零成本。能用 L1 解決的絕不用 LLM judge，
-   又慢又貴還不穩定。這裡的檢查全是正則或字串比對。
+固定流程的 eval 只看答案。換成 agent 之後多了兩層：
 
-L2 人工標註 —— 需要判斷力的部分（例如「10.7g 算不算高蛋白」），程式做不到。
-   輸出成 CSV 讓人逐項標記。這批標註之後會成為 LLM-as-Judge 的校準基準：
-   沒有人工標註當黃金標準，就無從驗證 judge 本身可不可信。
+    答案   回答對不對          ← 需要人工或 judge 判斷
+    路徑   有沒有選對工具      ← 程式就能檢查，成本為零
+    效率   幾輪、幾次呼叫      ← 同上
 
-注意 dataset.jsonl 裡沒有「標準答案」欄位，只有 expect 和 rubric。
-LLM 輸出有無數種合理說法，存固定字串去比對只會得到永遠失敗的測試。
+**路徑必須單獨評估**，因為「選錯工具但答案通順」只看答案完全看不出來。
+實例：問「我吃過什麼蛋白質密度最高的食物」，agent 呼叫 rank_by_nutrient
+（查的是公開資料庫，範圍錯了）回答柴魚片——兩次呼叫都成功、答案也通順，
+只有看路徑才發現它答錯了問題。
+
+## 路徑判準寫寬鬆，不要寫死
+
+不要求「路徑必須完全等於 [A, B]」——合理的路徑常常不只一種，而且模型的
+非決定性會讓同一題這次一步、下次兩步。改用四種約束（見 _check_path）：
+必要工具、禁用工具、順序、次數上限。
+
+## L1 / L2 分層
+
+L1 自動斷言確定性、幾乎零成本，能用它解決的絕不用 LLM judge。
+L2 人工標註處理需要判斷力的部分，那批標註之後會成為 judge 的校準基準。
 """
 
 import csv
@@ -24,34 +36,29 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from app.rag.qa import QAResult, answer_question
+from app.agent.loop import AgentResult, run_agent
 from scripts.seed_dev_data import seed
 
 EVALS_DIR = Path(__file__).parent
 DATASET_PATH = EVALS_DIR / "dataset.jsonl"
 RESULTS_DIR = EVALS_DIR / "results"
 
-MAX_ANSWER_CHARS = 200
+# 跟 loop.py 的 prompt 保持一致。從 200 放寬到 300 是因為 agent 的工具會
+# 回傳結構化資料，列幾項食物加上必要說明就會接近這個長度；同時在 prompt
+# 裡加了「最多列 3 項」，限制項數比限制字數更容易被遵守（數項目比數字容易）。
+MAX_ANSWER_CHARS = 300
 
 NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
-CITATION_RE = re.compile(r"\[\d+\]")
 
-# 只檢查「緊接著營養單位」的數字。
-# 這條規則要防的是編造營養數據，不是份量假設——
-# 「一杯 300ml」是 prompt 明文要求模型自行估算的，不該被當成編造。
+# 只檢查緊接著營養單位的數字。這條規則要防的是編造營養數據，
+# 不是份量假設——「一杯 300ml」是 prompt 明文要求模型自行估算的。
 NUTRIENT_VALUE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:大卡|kcal|公克|克|毫克|[gG]\b|mg)")
 
-# 允許模型做份量換算時用的倍率（半份、兩份、三份…）。
-# 沒有這些，「35 大卡 × 3 杯 = 105」會被誤判成編造。
+# 允許模型做份量換算時用的倍率。沒有這些，「35 大卡 × 3 杯 = 105」
+# 會被誤判成編造。
 SCALE_FACTORS = [0.25, 0.5, 1, 1.5, 2, 3, 4, 5, 10]
 
-# 四捨五入容差：模型常把 34.98 講成 35。
 DERIVE_TOLERANCE = 0.55
-
-# 只有這些類型的問題會用到營養知識庫，才需要引用標記。
-# 個人問題（「我今天吃了什麼」）的答案全部來自 user_food_log，
-# 硬要求它標引用是規則設計錯誤，不是模型的錯。
-CITATION_REQUIRED_TYPES = {"knowledge", "mixed"}
 
 
 @dataclass
@@ -59,12 +66,11 @@ class CheckResult:
     """一條 L1 檢查的結果。
 
     severity 區分兩種規則：
-    - "fail"：確定性判斷，或已用人工標註驗證過精準度的規則。違反就是錯。
+    - "fail"：確定性判斷，或已用人工標註驗證過精準度的規則。
     - "warn"：還在試驗階段的啟發式規則。值得看一眼，但不列入失敗統計。
 
-    分級的用意是避免「狼來了」——一條會製造假警報的規則若和確定性規則
-    混在同一個 FAIL 池裡，久了所有警告都會被忽略。
-    規則累積足夠的驗證資料後，再從 warn 升級成 fail。
+    分級是為了避免「狼來了」——會製造假警報的規則若和確定性規則混在同一個
+    FAIL 池裡，久了所有警告都會被忽略。
     """
 
     name: str
@@ -74,9 +80,8 @@ class CheckResult:
 
 
 def _has_simplified_chinese(text: str) -> bool:
-    """偵測簡體字。
+    """查每個中文字的 Unicode 名稱有沒有 SIMPLIFIED 標記。
 
-    查每個中文字的 Unicode 名稱有沒有 SIMPLIFIED 標記——
     不需要維護對照表，也不會漏掉罕見字。
     """
     for ch in text:
@@ -92,14 +97,13 @@ def _has_simplified_chinese(text: str) -> bool:
 def _is_derivable(target: float, pool: list[float]) -> bool:
     """target 能否由 pool 裡的數字經「一步」四則運算得出（含捨入容差）。
 
-    為什麼需要這個：模型的合理推導會產生 context 裡沒有的數字。
-    實際遇過的兩個——
+    模型的合理推導會產生工具結果裡沒有的數字，例如
         105 = 35 大卡 × 3 杯      （份量換算）
         32  = 96 目標 − 64 攝取   （差距計算）
-    只比對字面數字的話，這兩個都會被誤判成「編造」。
+    只比對字面數字的話，這兩個都會被誤判成編造。
 
-    只做一步運算是刻意的：兩步以上的組合數會爆炸，而且幾乎任何數字
-    都能被湊出來——檢查就失去意義了。寧可漏抓，不要放行過寬。
+    只做一步是刻意的：兩步以上的組合數會爆炸，而且幾乎任何數字都能被湊出來，
+    檢查就失去意義。寧可漏抓，不要放行過寬。
     """
     if any(abs(target - n) <= DERIVE_TOLERANCE for n in pool):
         return True
@@ -115,7 +119,64 @@ def _is_derivable(target: float, pool: list[float]) -> bool:
     return False
 
 
-def run_l1_checks(example: dict, result: QAResult) -> list[CheckResult]:
+def _check_path(example: dict, result: AgentResult) -> list[CheckResult]:
+    """路徑判準：檢查 agent 呼叫了什麼，而不只是它回答了什麼。
+
+    四種約束，全部是字串比對或計數，不需要 LLM judge：
+
+    required_tools  這題必須用到的工具（「高蛋白低卡」必須走數值排序）
+    forbidden_tools 這題不該用的工具（純知識問題不該查個人紀錄）
+    order           前者必須出現在後者之前（多跳題的依賴關係）
+    max_calls       呼叫次數上限（防止繞路與浪費）
+
+    沒有寫 path 的 example 就跳過——不是每一題都值得定義路徑。
+    """
+    spec = example.get("path")
+    if not spec:
+        return []
+
+    names = [c.name for c in result.tool_calls]
+    checks: list[CheckResult] = []
+
+    for tool in spec.get("required_tools", []):
+        checks.append(
+            CheckResult(
+                f"必須呼叫 {tool}",
+                tool in names,
+                f"實際路徑：{' → '.join(names) or '（未呼叫工具）'}",
+            )
+        )
+
+    for tool in spec.get("forbidden_tools", []):
+        checks.append(
+            CheckResult(
+                f"不應呼叫 {tool}",
+                tool not in names,
+                f"實際路徑：{' → '.join(names) or '（未呼叫工具）'}",
+            )
+        )
+
+    order = spec.get("order", [])
+    if len(order) >= 2 and all(t in names for t in order):
+        positions = [names.index(t) for t in order]
+        checks.append(
+            CheckResult(
+                f"順序 {' → '.join(order)}",
+                positions == sorted(positions),
+                f"實際位置：{positions}",
+            )
+        )
+
+    if "max_calls" in spec:
+        limit = spec["max_calls"]
+        checks.append(
+            CheckResult(f"呼叫次數 ≤ {limit}", len(names) <= limit, f"{len(names)} 次")
+        )
+
+    return checks
+
+
+def run_l1_checks(example: dict, result: AgentResult) -> list[CheckResult]:
     """確定性檢查，每一條都來自實際觀察到的失敗。
 
     每個 bug 都變成一條測試——這是 eval 資料集長大的方式，
@@ -128,24 +189,34 @@ def run_l1_checks(example: dict, result: QAResult) -> list[CheckResult]:
     checks.append(CheckResult("繁體中文", not _has_simplified_chinese(answer)))
 
     checks.append(
-        CheckResult("長度≤200", len(answer) <= MAX_ANSWER_CHARS, f"{len(answer)} 字")
+        CheckResult(f"長度≤{MAX_ANSWER_CHARS}", len(answer) <= MAX_ANSWER_CHARS, f"{len(answer)} 字")
     )
 
     checks.append(CheckResult("不說「使用者」", "使用者" not in answer))
 
-    if example["type"] in CITATION_REQUIRED_TYPES and result.retrieved:
-        checks.append(CheckResult("有引用標記", bool(CITATION_RE.search(answer))))
+    # 迴圈有沒有正常收斂。hit_limit 表示模型用完次數還沒給出答案，
+    # 使用者拿到的是罐頭訊息而不是回答。
+    checks.append(CheckResult("迴圈正常結束", not result.hit_limit))
 
-    # Groundedness 的廉價近似：答案裡的營養數值要能在 context 中找到，
-    # 或能由 context 的數字一步算出。
+    # 系統層錯誤。有值表示有東西壞了，即使使用者看到的訊息還算得體。
+    checks.append(
+        CheckResult("無系統錯誤", result.error is None, result.error or "")
+    )
+
+    checks.extend(_check_path(example, result))
+
+    # Groundedness 的廉價近似：答案裡的營養數值要能在工具結果中找到，
+    # 或能由工具結果的數字一步算出。
     #
-    # 列為 warn 而非 fail：第一版 5 題就製造了 2 個假警報（105、32），
-    # 加了算術推導之後應該會好轉，但它本質仍是啟發式，還沒有足夠的
-    # 人工標註證明它可信。累積更多樣本、確認精準度後再考慮升級成 fail。
-    context = result.user_context + result.knowledge_context
-    context_numbers = [float(n) for n in NUMBER_RE.findall(context)]
+    # 列為 warn 而非 fail：它本質是啟發式，還沒有足夠的人工標註證明它可信。
+    # 累積更多樣本、確認精準度後再考慮升級成 fail。
+    #
+    # 這裡用 ToolCall.result（完整）而不是 result_preview（截短）——
+    # 比對模型實際看到的全部內容，截短過的會製造大量假警報。
+    tool_output = "\n".join(c.result for c in result.tool_calls)
+    pool = [float(n) for n in NUMBER_RE.findall(tool_output)]
     claimed = {float(n) for n in NUTRIENT_VALUE_RE.findall(answer)}
-    ungrounded = sorted(n for n in claimed if not _is_derivable(n, context_numbers))
+    ungrounded = sorted(n for n in claimed if not _is_derivable(n, pool))
     checks.append(
         CheckResult(
             "數值有出處",
@@ -167,9 +238,8 @@ def load_dataset() -> list[dict]:
 
 
 def main() -> None:
-    # 先把測試資料重置成已知狀態。
-    # 沒有這一步，eval 就不可重現——seed 的日期是相對於執行當下算的，
-    # 隔天再跑「今天」就沒有紀錄了，個人問題全部答不出來，
+    # 先把測試資料重置成已知狀態。沒有這一步 eval 就不可重現——
+    # seed 的日期是相對於執行當下算的，隔天再跑「今天」就沒有紀錄了，
     # 而你會誤以為是 prompt 改壞了。
     seeded = seed()
     print(f"已重置測試資料：{seeded} 筆 food_logs\n")
@@ -179,7 +249,7 @@ def main() -> None:
     total_strict = passed_strict = warn_count = 0
 
     for example in examples:
-        result = answer_question(example["question"], user_id=example["user_id"])
+        result = run_agent(example["question"], user_id=example["user_id"])
         checks = run_l1_checks(example, result)
 
         # 只有 severity="fail" 的規則計入通過率；warn 另外統計。
@@ -192,9 +262,12 @@ def main() -> None:
         passed_strict += sum(c.passed for c in strict)
         warn_count += len(warned)
 
+        path = " → ".join(c.name for c in result.tool_calls) or "（未呼叫工具）"
+
         print("=" * 78)
         print(f"[{example['id']}]  type={example['type']}")
         print(f"Q: {example['question']}")
+        print(f"路徑（{result.iterations} 輪）: {path}")
         print("-" * 78)
         print(result.answer)
         print("-" * 78)
@@ -209,6 +282,14 @@ def main() -> None:
 
         # 每個 rubric 項目一列，讓標註者逐項判斷而不是給整體印象分。
         # 拆細的好處是失敗時能直接指出「哪一條沒過」，而不是「感覺不太好」。
+        #
+        # tool_results 存完整結果是給 judge 用的：judge 要判斷「數值對不對」，
+        # 就必須看到 agent 當時看到的東西。路徑不可重現（模型的選擇會變），
+        # 所以必須歸檔，不能事後重算。
+        tool_results = "\n\n".join(
+            f"[{c.name}({json.dumps(c.arguments, ensure_ascii=False)})]\n{c.result}"
+            for c in result.tool_calls
+        )
         for item in example["rubric"]:
             rows.append(
                 {
@@ -216,6 +297,8 @@ def main() -> None:
                     "type": example["type"],
                     "question": example["question"],
                     "answer": result.answer,
+                    "tool_path": path,
+                    "tool_results": tool_results,
                     "l1_fail": ", ".join(failed),
                     "l1_warn": ", ".join(warned),
                     "rubric": item,
