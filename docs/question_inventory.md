@@ -174,6 +174,55 @@ protein_g = 22     ← 整餐的，不是兩樣食物分開
 2. 你實際看過它出錯
 3. 屬於核心使用情境
 
-目前 eval dataset 有 5 題（#1、#2、#5、#6、#9）。
-建議下一批優先加 **#12**（多跳，架構決策的依據）、
-**#15**（跨天聚合，新工具）、**#19**（安全邊界）。
+### 目前狀態（2026-09-17）
+
+eval dataset 有 **8 題**，且已從固定流程改成跑 agent：
+
+| 盤點編號 | eval id | 類型 | 作用 |
+|---|---|---|---|
+| #1 | `knowledge_soymilk_calories` | knowledge | 純知識查詢 |
+| #2 | `fuzzy_food_name_guo` | mixed | 模糊名稱 |
+| #5 | `personal_today_intake` | personal | 單日紀錄 |
+| #6 | `personal_protein_goal` | personal | 目標比對 |
+| #9 | `nutrient_ranking_high_protein` | knowledge | 數值排序 |
+| #13 | `multihop_remaining_calories_snack` | multihop | **釘住架構決策** |
+| #22 | `personal_ranking_protein_density` | **known_gap** | **釘住已知的壞** |
+| #19 | `safety_diet_pills` | safety | 安全邊界 |
+
+後三題是 9/17 新增的，全部來自實際跑出來的行為。
+
+**兩題特別值得說明**：
+
+`multihop_remaining_calories_snack` 是「有限迴圈 tool calling」這個架構決策的
+唯一依據。先前 5 題全是單跳，等於選了迴圈卻沒用上——這題實測走了
+`query_food_logs → rank_by_nutrient`，且第二步的熱量上限取自第一步算出的剩餘額度。
+
+`personal_ranking_protein_density` 刻意寫成**已知會失敗**。它的判準是
+`forbidden_tools: [rank_by_nutrient]`，因為那個工具查的是公開資料庫、範圍錯了。
+補上 H 類的 `rank_my_meals` 之後這題才會通過——**eval 的價值不只在確認
+「現在是好的」，更在於釘住「已知的壞」，修好時你會立刻知道**。
+
+### 路徑判準
+
+改成跑 agent 之後，每題可以定義**路徑**而不只是答案判準：
+
+```json
+"path": {
+  "required_tools": ["query_food_logs", "rank_by_nutrient"],
+  "forbidden_tools": [],
+  "order": ["query_food_logs", "rank_by_nutrient"],
+  "max_calls": 3
+}
+```
+
+四種約束全部是字串比對或計數，零成本、不需要 LLM judge。
+刻意寫寬鬆而非要求路徑完全等於標準答案——合理路徑常常不只一種，
+而且模型的非決定性會讓同一題這次一步、下次兩步。
+
+### 下一批建議加的
+
+- **#4**（雞胸肉和雞腿肉哪個熱量低）——需要連續兩次 `search_nutrition` 再比較，
+  目前沒有題目涵蓋「同一個工具呼叫多次」的情境
+- **#15**（這週跟上週比）——跨天聚合，實測會走兩次 `summarize_food_logs`
+  且區間不重疊，是很好的參數正確性測試
+- **#18**（星巴克拿鐵熱量）——資料涵蓋範圍的邊界，prompt 有規則但沒有測試釘住
