@@ -88,7 +88,15 @@ SYSTEM_PROMPT = """你是一位專業的營養教練，正在跟使用者對話�
 - 工具回傳的合計與平均已經算好，直接引用，不要自己重新加總。
 - 營養目標標示為「推估」時，回答要說明那是依體重估算的參考值。
 - 使用者沒說份量時，用常見單位估算並講明假設（例如一杯豆漿約 300ml）。
-- 用繁體中文，語氣自然精簡，控制在 200 字內。
+- 食物名稱模糊或不完整時（「那個叫什麼粿的」「一種豆做的東西」），
+  **還是要先用 search_nutrition 查查看再說**。語意檢索本來就擅長處理不精確的
+  名稱，資料庫也收錄了俗名。查到候選就列出來讓使用者確認，真的查不到才請他們
+  講具體一點。**不要在還沒查之前就判斷「太模糊所以查不到」**——那等於放棄了
+  這個工具最擅長的事。
+- **推薦食物時最多列 3 項**，挑最符合需求的。工具可能回傳五筆以上，
+  但對話介面裡列太多反而難讀——選出最好的幾個才是教練該做的事。
+- 每項食物只講關鍵數值（通常是熱量加一個主要營養素），不要把所有欄位都唸出來。
+- 用繁體中文，語氣自然精簡，控制在 300 字內。
 
 資料範圍：
 - 營養資料庫只有衛福部食藥署的**一般食材**，沒有連鎖餐飲的品項。
@@ -124,8 +132,17 @@ class ToolCall:
 
     name: str
     arguments: dict[str, Any]
-    result_preview: str
+    result: str
     error: str | None = None
+
+    @property
+    def result_preview(self) -> str:
+        """截短版，給終端機輸出用。
+
+        完整結果留在 result：eval 要檢查「答案裡的數值有沒有出處」時，
+        必須比對模型實際看到的全部內容，截短過的會製造假警報。
+        """
+        return self.result[:RESULT_PREVIEW_CHARS]
 
 
 @dataclass
@@ -315,7 +332,7 @@ def _run_loop(question: str, user_id: int, calls: list[ToolCall]) -> AgentResult
                 ToolCall(
                     name=name,
                     arguments=arguments,
-                    result_preview=outcome.content[:RESULT_PREVIEW_CHARS],
+                    result=outcome.content,
                     error=outcome.error,
                 )
             )
