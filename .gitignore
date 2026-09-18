@@ -42,8 +42,14 @@ backend/alembic/versions/__pycache__/
 frontend/.streamlit/secrets.toml
 .claude/settings.local.json
 
-# RAG 原始資料——第三方發布的資料集，不進 repo（體積大且非本專案產出）
-backend/data/
+# RAG 原始資料：食藥署的食品營養成分資料庫**要**進版控（約 2MB）。
+# 原本排除它是因為「第三方資料集不該進 repo」，但那跟「clone 下來能跑」
+# 直接衝突——沒有這個檔案就無法 ingest，eval 的數字也無法重現。
+# 政府資料開放授權允許重新散布，2MB 對 git 也不是負擔。
+#
+# 其他放進 backend/data/ 的暫存檔仍然排除：
+backend/data/*
+!backend/data/*.xlsx
 
 # Jupyter——探索用的暫存 notebook，不是專案產出
 *.ipynb
