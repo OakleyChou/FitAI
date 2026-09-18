@@ -134,6 +134,10 @@ class ToolCall:
     arguments: dict[str, Any]
     result: str
     error: str | None = None
+    # 系統層失敗（工具暫時不可用），跟「模型參數給錯」或「重複呼叫」區分開——
+    # 後兩者也會設 error，但那不代表服務降級。API 層靠這個旗標決定
+    # 要不要告訴前端「部分功能暫時不可用」。
+    unavailable: bool = False
 
     @property
     def result_preview(self) -> str:
@@ -334,6 +338,7 @@ def _run_loop(question: str, user_id: int, calls: list[ToolCall]) -> AgentResult
                     arguments=arguments,
                     result=outcome.content,
                     error=outcome.error,
+                    unavailable=outcome.unavailable,
                 )
             )
             # 每個 tool_call_id 都必須有對應的結果，少一個 API 會報錯
