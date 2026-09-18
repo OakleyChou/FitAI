@@ -1,0 +1,8 @@
+# 這些不需要進映像，排除掉可以讓 build 更快、映像更小
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+# .env 含真實金鑰，一律不進映像——執行時由 compose 注入
+.env

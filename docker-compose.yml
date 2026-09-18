@@ -1,0 +1,56 @@
+# FitAI Coach 的本機執行環境。
+#
+#   docker compose up -d --build     啟動
+#   docker compose down              停止（資料保留）
+#   docker compose down -v           停止並刪除資料（會清掉 2213 筆 embedding，
+#                                    重灌要花錢和時間，確認過再用）
+#
+# 啟動後還要跑一次初始化，見 README。
+
+services:
+  db:
+    # pgvector 官方映像 = Postgres 16 加上向量擴充。
+    # 用原生 postgres 映像的話還要自己編譯安裝 pgvector。
+    image: pgvector/pgvector:pg16
+    container_name: fitai-postgres
+    environment:
+      POSTGRES_USER: fitai
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: fitai
+    ports:
+      # 對外開放是為了讓「在本機直接跑 Python」的開發方式仍然可行
+      # （poetry run pytest、poetry run python -m evals.run_eval 等等）。
+      # 正式部署時應該拿掉，只讓 api 容器透過內部網路連。
+      - "5432:5432"
+    volumes:
+      # 具名 volume：容器刪掉資料還在。沒有這行的話，
+      # docker compose down 會連同 2213 筆 embedding 一起消失。
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # depends_on 只保證「容器已啟動」，不保證「Postgres 能接受連線」——
+      # 中間有幾秒的初始化，api 這時連上去會直接失敗。
+      # pg_isready 回傳 0 才算真的準備好。
+      test: ["CMD-SHELL", "pg_isready -U fitai -d fitai"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    container_name: fitai-api
+    env_file:
+      # API 金鑰從這裡來，絕不寫進這個檔案（它會進版控）。
+      # 新的 clone 要先 cp backend/.env.example backend/.env 再填值。
+      - ./backend/.env
+    environment:
+      # 覆寫 .env 裡的值。容器裡的 localhost 指的是「api 容器自己」，
+      # 連不到 db——Compose 的內部網路用 **service 名稱** 當 hostname。
+      DATABASE_URL: postgresql+psycopg://fitai:password@db:5432/fitai
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
