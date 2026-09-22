@@ -46,7 +46,10 @@ RESULTS_DIR = EVALS_DIR / "results"
 # 跟 loop.py 的 prompt 保持一致。從 200 放寬到 300 是因為 agent 的工具會
 # 回傳結構化資料，列幾項食物加上必要說明就會接近這個長度；同時在 prompt
 # 裡加了「最多列 3 項」，限制項數比限制字數更容易被遵守（數項目比數字容易）。
-MAX_ANSWER_CHARS = 300
+# 2026-09-22 從 300 調到 350：prompt 新增了「引用標記」與「計量基準」兩項要求，
+# 每列食物因此多約 40 字，三項就是 120 字。**加了要求就要給預算**——
+# 不調的話等於因為 agent 照做而扣它分，那條規則量到的就不再是簡潔度了。
+MAX_ANSWER_CHARS = 350
 
 NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 
@@ -65,6 +68,16 @@ CITATION_RE = re.compile(r"\b([A-Z]\d{5,7})\b")
 # 會回傳營養資料庫內容的工具。只有這些的結果需要附來源編號——
 # 使用者自己的飲食紀錄是他自己輸入的，沒有外部出處可引。
 KNOWLEDGE_TOOLS = {"search_nutrition", "rank_by_nutrient"}
+
+# 計量基準：「35 大卡」單獨出現是沒有意義的，要講清楚是多少份量的 35 大卡。
+# 資料庫一律以每 100 公克計，但答案換算成常見份量（一杯、一份、一顆）也可以，
+# 只要有寫。涵蓋全形與半形、公克與毫升、以及常見的份量單位。
+MEASURE_BASIS_RE = re.compile(
+    r"每\s*\d+\s*(?:公克|克|毫升|ml|ML|g|G)"
+    r"|每(?:100)?\s*(?:公克|克|毫升)"
+    r"|一(?:杯|份|顆|片|碗|匙|根|條|塊)"
+    r"|\d+\s*(?:ml|ML|毫升|cc|CC)"
+)
 
 # 允許模型做份量換算時用的倍率。沒有這些，「35 大卡 × 3 杯 = 105」
 # 會被誤判成編造。
@@ -236,6 +249,13 @@ def run_l1_checks(example: dict, result: AgentResult) -> list[CheckResult]:
 
     if used & KNOWLEDGE_TOOLS and available:
         checks.append(CheckResult("有引用標記", bool(cited)))
+
+        # 「豆漿約 35 大卡」單獨看是沒有意義的——35 大卡的是一口還是一公升？
+        # 資料庫的數字一律是每 100 公克，答案不寫基準等於把單位吞掉了。
+        # 只在引用營養資料庫時檢查：個人紀錄講的是「那一餐」，本來就沒有基準可言。
+        checks.append(
+            CheckResult("數值有計量基準", bool(MEASURE_BASIS_RE.search(answer)))
+        )
 
     # 編出來的編號比沒有編號更糟：它看起來可稽核，實際上查不到。
     fabricated = sorted(cited - available)

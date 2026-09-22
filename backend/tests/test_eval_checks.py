@@ -59,6 +59,26 @@ def test_編出來的編號會被抓到():
     assert checks["引用標記真實存在"] is False
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        pytest.param("柴魚片[J0800401]：每 100 公克 76.5 公克蛋白質。", id="每100公克"),
+        pytest.param("柴魚片[J0800401]：每100克約 382 大卡。", id="無空格半形"),
+        pytest.param("豆漿[H1150201] 一杯約 105 大卡。", id="常見份量"),
+        pytest.param("豆漿[H1150201] 每 100 毫升 35 大卡。", id="毫升"),
+    ],
+)
+def test_有寫計量基準(answer):
+    assert _check(answer)["數值有計量基準"] is True
+
+
+def test_沒寫計量基準會被抓到():
+    """「約 35 大卡」單獨看沒有意義——35 大卡的是一口還是一公升？"""
+    assert _check("柴魚片[J0800401]：約 382 大卡，蛋白質 76.5 克。")[
+        "數值有計量基準"
+    ] is False
+
+
 def test_個人飲食紀錄不要求引用():
     """使用者自己輸入的資料沒有外部出處，要求引用是無理取鬧。"""
     result = AgentResult(
