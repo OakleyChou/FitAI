@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.llm import extract_food_log
 from app.models import FoodLog as FoodLogModel
+from app.models import User as UserModel
 from app.schemas import FoodLog, FoodLogCreate, FoodLogUpdate, InputType
 
 router = APIRouter(prefix="/food_logs", tags=["food_logs"])
@@ -14,6 +15,14 @@ router = APIRouter(prefix="/food_logs", tags=["food_logs"])
 @router.post("", response_model=FoodLog)
 def create_food_log(payload: FoodLogCreate, db: Session = Depends(get_db)):
     """新增一筆飲食紀錄：把使用者的自然語言輸入丟給 LLM 解析，再存進資料庫。"""
+    # 先確認使用者存在，再呼叫 LLM。順序反過來的話有兩個問題：
+    #   1. user_id 不存在時，外鍵約束會在 commit 才爆，回給客戶端的是 500——
+    #      但這是客戶端給錯資料，500 等於叫對方重試，而重試永遠不會成功。
+    #   2. 那次 LLM 呼叫白花了錢，而且結果注定要丟掉。
+    # 通則：便宜的驗證放在昂貴的呼叫前面。
+    if db.get(UserModel, payload.user_id) is None:
+        raise HTTPException(status_code=404, detail="User not exist")
+
     extraction = extract_food_log(payload.raw_text)
 
     new_log = FoodLogModel(

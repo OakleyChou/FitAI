@@ -21,7 +21,9 @@ from sqlalchemy import text
 
 import app.models  # noqa: F401  import 就會讓 model 註冊到 Base.metadata
 from app.database import Base, SessionLocal, engine
-from app.models import User
+from app.llm import FOOD_EXTRACTION_PROMPT_NAME
+from app.models import PromptVersion, User
+from app.prompts import FOOD_EXTRACTION_SYSTEM_PROMPT
 
 DEV_USER_ID = 1
 DEV_USER_EMAIL = "test@example.com"
@@ -52,6 +54,30 @@ def init() -> None:
                 )
             )
             db.commit()
+
+        # 寫入基準 prompt。少了這筆，POST /food_logs 會直接 500——
+        # 它要靠 get_active_prompt 拿系統提示詞，而那是從資料庫讀的。
+        # 這個 bug 在 2026-09-22 的整合測試中踩到：prompt 原本只存在
+        # 開發機的資料庫裡，沒有任何程式碼或文件記錄它的內容。
+        #
+        # 只在「這個 name 完全沒有任何版本」時才寫，所以不會蓋掉
+        # 之後用 add_prompt_version 加上去的新版本。
+        has_prompt = (
+            db.query(PromptVersion)
+            .filter(PromptVersion.name == FOOD_EXTRACTION_PROMPT_NAME)
+            .first()
+            is not None
+        )
+        if not has_prompt:
+            db.add(
+                PromptVersion(
+                    name=FOOD_EXTRACTION_PROMPT_NAME,
+                    version=1,
+                    content=FOOD_EXTRACTION_SYSTEM_PROMPT,
+                    is_active=True,
+                )
+            )
+            db.commit()
     finally:
         db.close()
 
@@ -61,3 +87,4 @@ if __name__ == "__main__":
     tables = ", ".join(sorted(Base.metadata.tables))
     print(f"資料庫初始化完成。資料表：{tables}")
     print(f"開發用使用者：id={DEV_USER_ID} ({DEV_USER_EMAIL})")
+    print(f"基準 prompt：{FOOD_EXTRACTION_PROMPT_NAME}")
