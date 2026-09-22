@@ -20,7 +20,7 @@ cp backend/.env.example backend/.env
 # 2. 啟動（首次會 build，約 2 分鐘）
 docker compose up -d --build
 
-# 3. 建立資料表與開發用使用者
+# 3. 建立資料表、開發用使用者、基準 prompt
 docker compose exec api python -m scripts.init_db
 
 # 4. 種測試用的飲食紀錄（14 天、36 筆）
@@ -207,13 +207,33 @@ poetry run uvicorn app.main:app --reload
 **同一份設定服務兩種開發方式**，不用手動切換。
 
 ```bash
-poetry run pytest                      # 19 個測試，約 5 秒，不需要 API key
+poetry run pytest                      # 45 個測試，約 1 秒，不需要 Docker 也不需要 API key
 poetry run ruff check app/ tests/      # lint
 poetry run python -m evals.run_eval    # 跑 eval（會呼叫 API，產生費用）
 poetry run python -m app.agent.loop "我這週跟上週比，熱量有下降嗎？"
 ```
 
 最後那個可以直接問 agent 一個問題，會印出**工具呼叫路徑** ——除錯時先看路徑，那比看答案有用得多。
+
+### 測試分兩層
+
+| | 測什麼 | 依賴 | 成本 |
+|---|---|---|---|
+| **單元測試** | 純函式的邊界：日期換算、錯誤分類、參數驗證 | 無 | 免費、每次改動都跑 |
+| **整合測試** | 端點的契約：狀態碼、回應形狀、降級判斷、欄位對應 | SQLite in-memory + 假的 LLM/agent | 免費、每次改動都跑 |
+| **eval** | 答案與工具路徑的品質 | 真的 Postgres + 真的 OpenAI | 要花錢，刻意跑得少 |
+
+整合測試**刻意不接真的依賴**：要先開 Docker、跑 seed、設 API key 的測試，
+會變成「有空才跑」的測試，也就等於沒有測試。這層用 SQLite 取代 Postgres、
+用假的函式取代 LLM，端點的契約照樣測得到。
+
+代價要講清楚——這層**測不到** JSONB 查詢、pgvector 相似度、`statement_timeout`、
+外鍵約束（SQLite 預設不強制），那些留給 eval 在真的資料庫上驗證。
+知道一層測試測不到什麼，跟知道它測到什麼一樣重要。
+
+寫這層測試當天就抓到兩個 bug，兩個都是「開發機上完全正常」的那種：
+prompt 只存在資料庫裡（新 clone 直接 500）、客戶端給錯 `user_id` 卻回 500
+且白花一次 LLM 呼叫。詳見 [`docs/pitfalls.md`](docs/pitfalls.md) 第八節。
 
 ---
 
