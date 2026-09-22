@@ -53,6 +53,11 @@ ALLOWED_NUTRIENTS = {
     "sodium_mg",
 }
 
+# 排序方向。原本只支援由高到低，結果問「有什麼低醣的東西」時，模型照樣呼叫
+# 這個工具、拿到碳水最高的前三名，然後在答案裡宣稱那些是低醣食物——
+# 不會拒答，只會給一個反過來的答案，而且講得很有自信。
+ALLOWED_ORDERS = {"desc", "asc"}
+
 
 @dataclass
 class FoodItem:
@@ -159,14 +164,16 @@ def search_nutrition(query: str, top_k: int = 5) -> list[FoodItem]:
 
 def rank_by_nutrient(
     nutrient: str,
+    order: str = "desc",
     max_calories: float | None = None,
     min_amount: float | None = None,
     limit: int = 5,
 ) -> list[FoodItem]:
-    """依某個營養素的含量排序，找出含量最高的食物，可加上熱量上限。
+    """依某個營養素的含量排序（由高到低或由低到高），可加上熱量上限。
 
     使用者問「有什麼**高蛋白**的食物」「**低卡**又有飽足感的」
-    「哪些食物**纖維最多**」這類**比較或排序**的問題時，用這個工具。
+    「哪些食物**纖維最多**」「有什麼**低醣**的可以換」這類**比較或排序**的
+    問題時，用這個工具。
 
     它做的是資料庫的數值排序，不是語意比對，所以結果保證符合數值條件。
     這是 search_nutrition 做不到的事。
@@ -175,6 +182,10 @@ def rank_by_nutrient(
         nutrient: 要排序的營養素，可用值：
             "protein_g"（蛋白質）、"carbs_g"（碳水）、"fat_g"（脂肪）、
             "fiber_g"（膳食纖維）、"sugar_g"（糖）、"sodium_mg"（鈉）。
+        order: 排序方向。**這個參數決定你拿到的是最高還是最低，不要用錯。**
+            "desc"（預設）由高到低——使用者問「高蛋白」「纖維最多」「最高」時用。
+            "asc" 由低到上——使用者問「低醣」「低鈉」「最少」「想換成比較低的」
+            時用。用錯方向會拿到完全相反的清單，而它看起來仍然很合理。
         max_calories: 每 100 公克的熱量上限，用來表達「低卡」。
             使用者說「低卡」時可用 150 大卡當預設門檻。
         min_amount: 該營養素每 100 公克的最低含量。
@@ -182,7 +193,7 @@ def rank_by_nutrient(
         limit: 回傳幾筆，預設 5。
 
     Returns:
-        依該營養素含量由高到低排序的食物清單。
+        依該營養素含量排序的食物清單，方向由 order 決定。
         沒有食物符合條件時回傳空清單——這時要如實告訴使用者查無符合的食物，
         不要改用你自己記憶中的營養知識來回答。
 
@@ -190,6 +201,8 @@ def rank_by_nutrient(
     if nutrient not in ALLOWED_NUTRIENTS:
         # 錯誤訊息列出可用值，讓模型能自我修正後重試
         raise ValueError(f"不支援的營養素 {nutrient!r}，可用值：{sorted(ALLOWED_NUTRIENTS)}")
+    if order not in ALLOWED_ORDERS:
+        raise ValueError(f"不支援的排序方向 {order!r}，可用值：{sorted(ALLOWED_ORDERS)}")
 
     # JSONB 取值 → 文字 → 數字。少了 .astext 會拿 JSONB 型別去比較，結果不是你要的。
     amount = cast(KnowledgeChunk.meta[nutrient].astext, Float)
@@ -210,7 +223,8 @@ def rank_by_nutrient(
         if min_amount is not None:
             query = query.filter(amount >= min_amount)
 
-        query = query.order_by(amount.desc()).limit(limit)
+        query = query.order_by(amount.desc() if order == "desc" else amount.asc())
+        query = query.limit(limit)
         return [_to_food_item(c.meta, c.source_ref) for c in query.all()]
     finally:
         db.close()

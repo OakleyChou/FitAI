@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from app.agent.tools import (
     ALLOWED_NUTRIENTS,
+    ALLOWED_ORDERS,
     query_food_logs,
     rank_by_nutrient,
     search_nutrition,
@@ -97,6 +98,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "使用者問「有什麼高蛋白的食物」「低卡又有飽足感的」「哪些食物纖維最多」"
                 "這類比較或排序的問題時使用。"
                 "它做的是資料庫的數值排序而非語意比對，結果保證符合數值條件。"
+                "【重要】order 參數決定由高到低還是由低到高，問「低醣」「低鈉」"
+                "這類問題時必須傳 asc，否則會拿到完全相反的結果。"
                 "查無符合條件的食物時會回傳空清單——這時要如實告知使用者，"
                 "不要改用你自己記憶中的營養知識來回答。"
             ),
@@ -109,6 +112,16 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                         # 寫出 "protein" 這種看似合理但不存在的欄位名。
                         "enum": sorted(ALLOWED_NUTRIENTS),
                         "description": "要排序的營養素欄位名。",
+                    },
+                    "order": {
+                        "type": "string",
+                        "enum": sorted(ALLOWED_ORDERS),
+                        "description": (
+                            "排序方向，決定拿到的是最高還是最低。"
+                            "desc（預設）由高到低，用於「高蛋白」「纖維最多」；"
+                            "asc 由低到高，用於「低醣」「低鈉」「最少」。"
+                            "用錯方向會拿到完全相反的清單，而它看起來仍然很合理。"
+                        ),
                     },
                     "max_calories": {
                         "type": "number",
