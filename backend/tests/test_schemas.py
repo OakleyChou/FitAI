@@ -53,20 +53,9 @@ def test_food_log_valid():
         fat_g=20.0,
     )
     assert log.raw_input_text is None
+    # 兩種寫法都斷言，是因為 InputType 繼承 str——
+    # 它既等於 enum 成員，也等於字串。後者是 JSON 序列化時實際會拿到的形式。
     assert log.input_type == InputType.text
-
-
-def test_food_log_valid():
-    log = FoodLog(
-        id=1,
-        user_id=1,
-        logged_at=datetime(2026, 7, 17, 12, 30),
-        calories=650.0,
-        protein_g=35.0,
-        carbs_g=70.0,
-        fat_g=20.0,
-    )
-    assert log.raw_input_text is None
     assert log.input_type == "text"
 
 
