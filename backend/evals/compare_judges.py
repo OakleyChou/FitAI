@@ -17,8 +17,8 @@
 import csv
 from pathlib import Path
 
-from app.rag.qa import build_contexts
 from evals.cache import JudgeCache
+from evals.calibrate import _evidence
 from evals.calibrate import cohens_kappa
 from evals.judge import judge_rubric
 
@@ -44,13 +44,10 @@ def main() -> None:
     rows = load_annotated()
     cache = JudgeCache()
 
-    # context 只算一次，兩個模型共用——省下重複的 embedding 呼叫，
-    # 也確保兩邊看到的輸入完全相同。
-    contexts: dict[str, tuple[str, str]] = {}
-    for row in rows:
-        if row["example_id"] not in contexts:
-            u, k, _ = build_contexts(row["question"], user_id=1)
-            contexts[row["example_id"]] = (u, k)
+    # 證據每列算一次，兩個模型共用——確保兩邊看到的輸入完全相同。
+    # 來源見 calibrate._evidence：agent 的 CSV 用歸檔的 tool_results，
+    # 固定流程時代的 CSV 才退回重跑檢索。
+    evidence = {id(row): _evidence(row) for row in rows}
 
     print(f"標註列數：{len(rows)}\n")
     print(f"{'模型':<16}{'一致率':>8}{'TPR':>8}{'TNR':>8}{'kappa':>9}")
@@ -61,13 +58,11 @@ def main() -> None:
         tp = fn = fp = tn = 0
         disagreements = []
         for row in rows:
-            u, k = contexts[row["example_id"]]
             verdict = judge_rubric(
                 question=row["question"],
                 answer=row["answer"],
-                user_context=u,
-                knowledge_context=k,
                 criterion=row["rubric"],
+                evidence=evidence[id(row)],
                 cache=cache,
                 model=model,
             ).verdict

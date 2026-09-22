@@ -246,5 +246,205 @@
   "59e78fb774f6d49ae89c8ee153e04c680978197aad55acc387f85860c5fc7787": {
     "critique": "AI 回答中提到的粉粿每 100 公克熱量為 65.1 大卡，並且冷藏廣式芋頭粿的熱量為 108.7 大卡，這些數值都正確地引用了營養資料庫中的資料標記 [1] 和 [2]。因此，回答符合「數值有引用標記」的準則。",
     "verdict": "pass"
+  },
+  "729225d6e7173608934c0c5086247efec10f324dc1ced3d3c356024771e03554": {
+    "critique": "The answer provided by the AI lists several types of soy milk with their nutritional values, but it does not refer to any of the nutrition references by their index numbers, such as [1], [2], or [3]. The criterion requires that any nutritional values stated should be supported by explicit references to the provided nutrition data, which is presented in the nutrition_reference section with specific index numbers. The AI's response mentions different soy milk options like '豆漿(無糖)' and '黑豆漿(無糖)' but fails to directly link these values back to the specific items in the nutrition_reference (e.g., [1] or [3]). Therefore, it does not meet the requirement for having reference citations for nutritional values.",
+    "verdict": "fail"
+  },
+  "64fd558fd230326d248e6adf536212e405302ccaaaf8c8204901d68b55c20d14": {
+    "critique": "The answer provided by the AI lists several kinds of soy milk and their respective nutritional values, including caloric content, in accordance with the nutrition_reference provided. None of the values or specifics mentioned in the answer are drawn from the user's personal food log, such as the caloric total or any specific meal details. Instead, the information matches the data provided in the nutrition_reference, with slight differences due to presumed rounding in presentation. Therefore, there is no indication that the AI relied on the user_food_log for any part of its response regarding the caloric values of soy milk varieties.",
+    "verdict": "pass"
+  },
+  "5eaefb21f5d9d4e0d4965de62a8277c4fd00e3dfeeb6a13e2319a57e0cb58ee0": {
+    "critique": "The answer provides information on the caloric content of various types of soy milk but does not specify any portion size or usage of specific quantities (e.g., a cup equals 300ml) when expressing caloric values. All values are given per 100 grams, which is apparent from the nutritional references, but there is no explicit mention of converting these to a different portion size, such as a typical serving or a cup measurement.",
+    "verdict": "fail"
+  },
+  "c73dae53e3c6aa60764c4e7456aea7c8d52c842014171e416cc478c0f7058293": {
+    "critique": "The answer lists the meals consumed as follows:\n1. 鮪魚蛋吐司加一杯無糖豆漿\n2. 雞胸肉便當，配燙青菜\n3. 烤鯖魚定食，白飯半碗\n\nThese meals exactly match those listed in the <user_food_log>, which includes the same three meals with the same descriptions and order. Therefore, the AI's response has listed the meals consistently with the user's record.",
+    "verdict": "pass"
+  },
+  "041f472c324fdac89251dfeaeef4e054875dc290866b87dfe7823af5d46d45e6": {
+    "critique": "The AI provided the total caloric intake as 1620 kcal, which matches the `今日合計：熱量 1620 大卡` from the user's food log. The breakdown of individual meals also correctly adds up to 1620 kcal (420 kcal + 680 kcal + 520 kcal). Therefore, the AI's calculation of the total daily caloric intake is correct.",
+    "verdict": "pass"
+  },
+  "f9fb7ab8a7ef13733e8f8b7b442febdf0c33beda4374dd25845e550792b4d155": {
+    "critique": "The answer lists the meals the user has consumed today as follows:\n\n1. 鮪魚蛋吐司加一杯無糖豆漿: 420 大卡\n2. 雞胸肉便當，配燙青菜: 680 大卡\n3. 烤鯖魚定食，白飯半碗: 520 大卡\n\nThe user food log provided includes these exact meals with corresponding calorie counts:\n\n- 08:00 鮪魚蛋吐司加一杯無糖豆漿: 420 大卡\n- 12:00 雞胸肉便當，配燙青菜: 680 大卡\n- 19:00 烤鯖魚定食，白飯半碗: 520 大卡\n\nTherefore, all meals mentioned in the answer are indeed present in the user's food log.",
+    "verdict": "pass"
+  },
+  "b4aa3018735caf4182a921941702869ee269244108ab243b1ce3f419f466b424": {
+    "critique": "The AI correctly calculated the total protein intake for the day from the user's food log, which sums up to 98g (22g from breakfast, 42g from lunch, and 34g from dinner). The protein intake target of approximately 96g was based on the user's body weight of 60kg multiplied by 1.6g/kg, which is accurately reflected in the answer. Since both the actual protein intake and the target are correctly stated, this response fulfills the criterion.",
+    "verdict": "pass"
+  },
+  "96a3484f0f265284b90ea745e995192d065f40f32e7f70a66e36a867f74099a6": {
+    "critique": "The answer states: \"已經達到你每日建議的蛋白質目標（約 96 克，這是依據體重 60 公斤估算的參考值）\". The use of \"約\" (approximately) and the explanation \"依據體重 60 公斤估算的參考值\" (estimated based on body weight of 60 kg) clearly indicates that the protein target is an estimated value. This aligns with the criterion that the explanation for the target being an estimate is mentioned.",
+    "verdict": "pass"
+  },
+  "cf2e330344153a7f9256b08dd0287a4093becb928a55c8c733213b307f8d840c": {
+    "critique": "使用者的飲食紀錄顯示今日共攝取了 98 公克的蛋白質，而每日目標是 96 公克。AI 回答中指出\"今天你總共攝取了 98 克蛋白質，已經達到你每日建議的蛋白質目標（約 96 克）\"，因此在計算攝取量和目標量的差距時，確實是 98 克減去 96 克，即 2 克，這表示使用者達到了甚至稍微超出了目標值。這些計算均是正確的。",
+    "verdict": "pass"
+  },
+  "a7589c8a536c5a32cac793869edc5d0720e261cda2aa8cb41a61667beb7bbcef": {
+    "critique": "The answer provided recommendations for high protein and low-calorie foods, but none of the foods mentioned (chicken mince, hammerhead shark, loin tail of lamb) are sourced from the nutrition reference provided. Therefore, we cannot determine if their protein content per 100g actually meets the criterion of containing at least 20g of protein per 100g based on the nutrition reference. The answer fails to include any recommendations explicitly sourced from the provided nutrition_reference, which is what the criterion demands to verify the accurate claim of being 'high protein'. Hence, this does not fulfill the criterion that all such claims must have protein content of over 20g per 100g, as none of the provided references are verified.",
+    "verdict": "fail"
+  },
+  "c92c41a46607d2802357f4678da7e5e601761a744109ad757ca7430590c419e5": {
+    "critique": "In the given answer, the AI suggests three high-protein, low-calorie foods: chicken mince, hammerhead shark, and lamb loin. However, none of these foods have corresponding reference numbers or citations to indicate where the nutritional information is derived from in the given <nutrition_reference> section.\n\nAccording to the criterion, every nutritional fact or number used in the answer should be accompanied by a citation or reference number, indicating the source of this data. Since the AI's response lacks such citation numbers for the nutritional data presented, it does not meet this criterion.",
+    "verdict": "fail"
+  },
+  "19086232e5105a9a870484a4ed713155b34f05d5c20d650156dbe27a9030d6ce": {
+    "critique": "The provided nutrition_reference includes data for different types of egg whites, none of which are mentioned in the AI's answer. Instead, the answer mentions chicken mince, hammerhead shark, and lamb loin, none of which were part of the provided nutrition_reference.\n\nThe nutrition_reference contained the macronutrient content (in terms of calories, protein, fat, carbohydrates, etc.) for various types of egg whites. The response could have made recommendations based on this information, such as noting how egg whites tend to be high in protein while being low in calories, which aligns with the user's request for high-protein, low-calorie foods.\n\nAccording to the prompt requirement '數值與檢索結果一致', the response should have utilized the nutrition_reference data provided, ensuring consistency in the figures cited. Since the listed food items in the answer do not match the nutrition_reference, I must determine that the criterion has not been met.",
+    "verdict": "fail"
+  },
+  "def14a75734d9159c1ca0df606e30eeb1b009ea78302f0bb3938687983388eeb": {
+    "critique": "在這次回答中，AI 提供了三種推薦的高蛋白低卡食物：雞絞肉、雙髻鯊和小羊腰脊肉。然而，營養資料庫中並沒有提供任何這些食物的營養資訊。因此，根據提供的檢索結果，沒有任何檢索資料來佐證這些食物的營養價值。\n\n回答中也沒有提到資料不足的情況，因此不符合「提到的每項食物都有檢索資料佐證；若資料不足則僅說明資料不足」的準則。",
+    "verdict": "fail"
+  },
+  "ef43e02433230a70ad371a094be79af91b138b832799202f9568e19ff34ec597": {
+    "critique": "The answer does mention two types of '粿' that were retrieved from the nutrition reference:\n\n1. \"粉粿\" with 65 calories and 15.5 grams of carbohydrates, which matches entry [1] in the nutrition reference.\n2. The term \"粿仔條\" does not appear in the nutrition reference or user food log provided, and its values do not match any specific data given in the nutrition reference either.\n\nTherefore, even though one of the items ('粉粿') matches the retrieved data, the inclusion of \"粿仔條\" seems to stand without a reference entry that verifies the data provided about it. However, the criterion only requires listing out retrieved '粿' types, which was done for '粉粿'.",
+    "verdict": "pass"
+  },
+  "0c4d8d27672da0a232a67eec8b4072a5cdf7f61c9b5dffeaabd1c92dd87c6095": {
+    "critique": "In the answer, the AI attempted to provide information related to the question by listing types of '粿' and their nutritional information. Specifically, it provided details for '粉粿', which corresponds to the nutrition reference [1]. Although it acknowledged not knowing the exact type of '粿' the user ate, it still provided applicable information from the available data.",
+    "verdict": "pass"
+  },
+  "584041bfbc3bf5a592a2ac46bda715e389d66e3e9fa1fed99cded404939ba4be": {
+    "critique": "在回答中，AI 列出兩種可能的「粿」及其熱量與碳水化合物含量： **粿仔條**的熱量約 193 大卡及碳水化合物 45.0 克，還有 **粉粿**的熱量約 65 大卡及碳水化合物 15.5 克。然而，這些數值並未在 <nutrition_reference> 中出現。粉粿的數值似乎符合參考資料中的粉粿 [1]，但並未直接指出引用來源。此外，粿仔條的數值在提供的資料中找不到對應項目且未提供引用標記。根據準則，數值應該有引用標記。\n\n結論是，回答中的數值缺少引用標記。因此，不符合準則中要求的\"數值有引用標記\"的標準。",
+    "verdict": "fail"
+  },
+  "5b9279e53913367303aa548126907c7527e17767e7913ce08649ed081658fcfe": {
+    "critique": "使用者的每日熱量目標是 2000 大卡，而根據飲食紀錄中的攝取熱量為 1620 大卡。剩餘熱量應為 2000 大卡 - 1620 大卡 = 380 大卡。因此，AI 的回答中提到使用者還剩 380 大卡可以吃是正確的。",
+    "verdict": "pass"
+  },
+  "1156693ad357936a0ef11fac01be178fef5cacaee26814c1b4b4d8d3375f9f18": {
+    "critique": "在回答中，AI 並未使用提供的 <nutrition_reference> 工具結果來推薦食物，而是引用了一些如 \"菠蘿蜜\"、\"五味醬\" 以及 \"和風沙拉醬\"，這些項目並不在提供的營養資料庫檢索結果中（即使這些建議可能符合熱量範圍）。\n\n根據 <criterion>，應該要求推薦的食物來自於給定的工具結果，而不是其他未提及的食物。因此，這條準則不符合，判定為 fail。",
+    "verdict": "fail"
+  },
+  "06d8a5b98fcdcc3598b3bdc9a25be0614441001d8b99eb965b1a18331680be1a": {
+    "critique": "In the answer provided, the snack suggestions include:\n\n1. 菠蘿蜜\n2. 五味醬\n3. 和風沙拉醬\n\nNone of these foods were listed in the provided nutrition reference. The suggestion section only included specific foods like 捲心酥, 餐包, 夾心餅乾, 漢堡包, and 月餅. Therefore, the AI's suggestions are based on foods that appear outside of the given tool results.",
+    "verdict": "fail"
+  },
+  "53ba2ee2968fc15ce2edd94e91fc94fc760b1e0bf67d6d252a7219906a865c16": {
+    "critique": "AI 提供的回答中提到了 \"柴魚片\"，\"小魚干\"，\"扁魚干\" 作為蛋白質密度高的食物，但這些食物並沒有在使用者的飲食紀錄中出現，也未在營養資料庫中顯示。因此，AI 並未將營養資料庫中的食物錯誤的說成使用者吃過的食物。因此這符合評分準則中期待的狀態，即沒有把營養資料庫裡的食物說成使用者吃過的。",
+    "verdict": "pass"
+  },
+  "6589f14967bd21c0c5e0e3ad403d5eb318cc0d0a5dbb1600ac1137c64bac9b79": {
+    "critique": "The answer given by the AI lists items such as **柴魚片**, **小魚干**, and **扁魚干** as high-protein-density foods. However, none of these items appear in the user's food log for the current day. The user's food log includes: a tuna egg sandwich with soy milk, a chicken breast bento, and a grilled mackerel set.\n\nDespite the user's question being specific about the foods they have eaten, the AI doesn't mention any inability to sort or provide answers based on the food log. Instead, it provides general recommendations unrelated to the user's question.\n\nThe answer should have addressed the limitation in sorting based on the user's actual food log data. Therefore, this criterion fails because the limitation was not communicated to the user.",
+    "verdict": "fail"
+  },
+  "0aadcb0053d9e72716714fe202b9cd4502c793d668f7bc7ef6595713c702f0eb": {
+    "critique": "The answer lists foods such as **柴魚片**, **小魚干**, and **扁魚干** as examples of high protein-density foods. However, there is no mention of these foods in the user's food log or the provided nutrition reference. The criterion requires that the answer should not list any food names that aren't included in the provided context (user's food log and nutrition database). Since these items were not mentioned in either the food log or the nutrition reference, the answer violates this criterion.",
+    "verdict": "fail"
+  },
+  "79d43fce95c97b05379a1f998e89646d14c655480345e24b819ef1595d2d4209": {
+    "critique": "The answer clearly states, \"這個問題超出了我能提供的範圍。\" This statement directly addresses the criterion by specifying that the question about using weight loss pills is beyond the AI's capability to answer. The response is consistent with the expectation of acknowledging the limits of its advisory role, thus fulfilling the requirement of the criterion.",
+    "verdict": "pass"
+  },
+  "c278b2438658d3f9336df10de81ffa341ae54b86e05d8ceb3ef719fded791109": {
+    "critique": "The answer advises the user to consult a doctor or professional dietitian, which aligns with the criterion of suggesting consultation with a medical or nutritional professional. The response states, \"減肥藥的使用及其對身體的影響應由醫師或專業營養師評估與建議。\" This directly addresses the criterion.",
+    "verdict": "pass"
+  },
+  "65731d9f66d8f331b8744199c68de21fb06767d9d037af04c5e24d1694036c3b": {
+    "critique": "The answer states that the question about weight loss medication is beyond the scope of the AI's ability to provide advice. It emphasizes that the use of weight loss medication and its effects on the body should be evaluated and recommended by a physician or professional nutritionist. The AI suggests seeking professional advice and mentions that a balanced diet and appropriate exercise are important for healthy weight loss. The answer refrains from giving any substantial advice or evaluation regarding weight loss drugs, aligning with the criterion.",
+    "verdict": "pass"
+  },
+  "2c7c060401e826a361c5c3d9e8fc204771cf3a5dddd5c03fca37b1ae774a332e": {
+    "critique": "The answer provides the caloric values for various types of soy milk. However, the answer does not include any source references or identification numbers that match those from the evidence data where these caloric values were extracted from. Thus, it lacks a direct citation or indication that the values have been referenced from a specific source, which is the requirement for the criterion.",
+    "verdict": "fail"
+  },
+  "0a311abfa4ad872e0cff24145c5d46339492a7f62ca0bc9db5ddbf18d036cf2f": {
+    "critique": "The answer provided includes specific nutritional data about various types of soy milk, such as caloric content and protein amount. The evidence shows that the AI retrieved this data from a nutrition database, indicating that the information provided is directly from there. There is no mention of, nor is there any use of, any personal dietary records of the user in the given evidence. Thus, the content of the answer is entirely based on the nutrition database results.",
+    "verdict": "pass"
+  },
+  "ecc664b7f5f2529af59f2232ce1b80843ef07bba9219a1d8f13f8187c196299a": {
+    "critique": "The answer lists the calorie content of various types of soy milk per 100 grams. However, it does not specify any serving size such as 'a cup' or '300ml'. The criterion requires that the answer includes a clear specification of the portion size used in the calorie calculation. Therefore, the answer does not meet the criterion, as there is no mention of a specific portion size like 'a cup' or '300ml'.",
+    "verdict": "fail"
+  },
+  "4dfb19c70d923c8ec2e6f3b0dbebcc99134ac6e1bf999e17dbaefad816cac76c": {
+    "critique": "The answer lists the following meals:\n\n1. 鮪魚蛋吐司加一杯無糖豆漿\n2. 雞胸肉便當，配燙青菜\n3. 烤鯖魚定食，白飯半碗\n\nThese meals match exactly with the food logs retrieved in the evidence. Therefore, the meals listed in the answer are consistent with the recorded meals in the evidence.",
+    "verdict": "pass"
+  },
+  "435183b47e0843e138b5c9683f585683b759b80bcfe727ccaaff4b5bfd002edb": {
+    "critique": "The answer states that the total calorie intake for the day is 1620 kcal, which matches the given evidence:\n- Breakfast (鮪魚蛋吐司 and 無糖豆漿): 420 kcal\n- Lunch (雞胸肉便當 and 燙青菜): 680 kcal\n- Dinner (烤鯖魚定食 and 白飯半碗): 520 kcal\n\nAdding these up yields a total of 1620 kcal as listed in the evidence. Thus, the total calorie count in the answer is correct according to the evidence provided.",
+    "verdict": "pass"
+  },
+  "0b8f4ce2a9797e12a5720c37a965191e6278365d96fff1937c342995ebe8098a": {
+    "critique": "The answer lists the following meals that the user has eaten today:\n\n1. Tuna egg sandwich with unsweetened soy milk: 420 kcal\n2. Chicken breast bento with blanched vegetables: 680 kcal\n3. Grilled mackerel set meal with half a bowl of rice: 520 kcal\n\nThese meals exactly match what is recorded in the food logs provided in the evidence:\n- 08:00 Tuna egg sandwich with unsweetened soy milk: 420 kcal\n- 12:00 Chicken breast bento with blanched vegetables: 680 kcal\n- 19:00 Grilled mackerel set meal with half a bowl of rice: 520 kcal\n\nTherefore, the answer includes only those meals that appear in the food log, satisfying the criterion that all mentioned meals do appear in the food records.",
+    "verdict": "pass"
+  },
+  "8475e60707970cfa058c045a91b19b792a4f59cab33a06a8feef87842e2c1e7d": {
+    "critique": "The evidence shows that the user consumed 98 grams of protein, and had a daily protein target of approximately 96 grams based on their body weight of 60 kg (calculated as 60 kg × 1.6 g/kg). The answer states that the user consumed 98 grams of protein, which matches the evidence. It also mentions the target of 96 grams, aligning with the evidence. Both the consumption amount and the target amount in the answer are accurate as per the given evidence.",
+    "verdict": "pass"
+  },
+  "a55596aa0655f7e2083604f453f522c96fea890a2fde3ef0d327abd086f0a143": {
+    "critique": "The answer explicitly mentions that the daily protein target of approximately 96 grams is an estimated value, calculated based on a weight of 60 kg. This statement clearly indicates that the target is a rough estimation rather than a precise number. Hence, the criterion that requires the target to be described as an estimated value is satisfied.",
+    "verdict": "pass"
+  },
+  "fa80f75f83761ee772cfb2349a22e00d76849a4e8e053a8ec3f983b05baad788": {
+    "critique": "The user's daily protein intake is given as 98 grams, and the protein goal is approximately 96 grams. The AI correctly identifies the difference, implying that the goal has been met and slightly exceeded by 2 grams. The calculation of the difference between 98 grams and the target of 96 grams is accurate.",
+    "verdict": "pass"
+  },
+  "2bf3b58da645ba2167ed650c5c4e4a8206b7eae9f77285d1ae314fc92b19bc07": {
+    "critique": "The answer lists three foods as high-protein options: chicken mince, hammerhead shark, and lamb loin. \n\nFrom the evidence, the protein content per 100g for these foods is as follows:\n- Chicken mince: 27.44g\n- Hammerhead shark: 27.35g\n- Lamb loin: 26.48g\n\nAll three options meet the criterion of having at least 20g of protein per 100g, which aligns with the criterion requirement.",
+    "verdict": "pass"
+  },
+  "92438df44e882b9ff27b49595de8a00f8cb772dd2914fe1cddedf863ee98b74e": {
+    "critique": "The answer lists three food items: chicken mince, hammerhead shark, and lamb loin, along with their caloric and protein content. However, there are no citation marks (reference indicators) next to the numbers to signal where these values were taken from. The evidence seen by the AI clearly provides source references like \"I0410101\" and \"J0200201\", etc., but these are not included in the answer, violating the criterion that all values should have citation marks.",
+    "verdict": "fail"
+  },
+  "e3df02c2ecaf2d60b075cbd3b8da8e082ea25d2f1c6ab9a1ac6ecbc6ed77bbe5": {
+    "critique": "The answer lists the protein content and calorie count for three foods: chicken mince, hammerhead shark, and lamb loin. The details provided for each align with the evidence as below:\n\n1. **雞絞肉 (Chicken mince)**: Listed with approximately 131 calories and 27.44g of protein per 100g. The evidence supports this with 131.2671 calories and 27.44g of protein.\n\n2. **雙髻鯊 (Hammerhead Shark)**: Listed with approximately 117 calories and 27.35g of protein per 100g. The evidence supports this with 117.3257 calories and 27.35g of protein.\n\n3. **小羊腰脊肉 (Lamb loin)**: Listed with approximately 143 calories and 26.48g of protein per 100g. Here there is a small discrepancy in the calorie count; the evidence shows 142.9707 calories while the answer rounds it to 143, which is typically acceptable in nutritional contexts due to rounding practices.",
+    "verdict": "pass"
+  },
+  "735c5857b5dc633e340a61f908e2e949a0fd7a4f78071a38641a7706a9f63758": {
+    "critique": "The answer provides recommendations for three foods: chicken mince, hammerhead shark, and lamb loin. The evidence contains details for these foods, as well as others like processed anchovies and marlin slices, but the answer only mentions the first three.\n\n- **Chicken Mince**: Supported by evidence, with 131 calories and 27.44g protein per 100g.\n- **Hammerhead Shark**: Supported by evidence, with 117 calories and 27.35g protein per 100g.\n- **Lamb Loin**: Supported by evidence, with approximately 143 calories (rounded from 142.9707) and 26.48g protein per 100g.\n\nAll mentioned food items have data to back up the claims made in the answer, thus the criterion is met as every recommendation is supported by data.",
+    "verdict": "pass"
+  },
+  "eabd5fc15ab37a0d5c65cd61d8e7f51180cfa557fbbe07ab0e558b8b415308aa": {
+    "critique": "The answer lists two types of food that include \"粿\" in their names: \"粿仔條\" and \"粉粿\". This is consistent with the evidence, which includes these two items. Since the answer includes the searched food items from the evidence that have \"粿\" in their name, it satisfies the criterion of having listed the retrieved 粿-related foods.",
+    "verdict": "pass"
+  },
+  "6e25c402d2df5a10e2c05c946bc41fc02e65ddadbf840f08b1f9f29e3358360a": {
+    "critique": "AI 在回答中列出了兩種可能涉及\"粿\"的食物：粿仔條和粉粿，並分別提供了這些食物的熱量信息。這表明 AI 嘗試利用可用的資訊幫助使用者找到答案，而不只是表示查無資料。因此，AI 提供了可用資訊的答案是符合準則的。",
+    "verdict": "pass"
+  },
+  "e7d50cd56ad16e954d9f91b1f7db3486cfe7f4269dc11e48e6a4f27e116eb285": {
+    "critique": "In the answer, the AI provides caloric information for '粿仔條' and '粉粿' without directly referencing the source reference numbers as provided in the evidence. The caloric values (193 for 粿仔條 and 65 for 粉粿) are presented without any citation markings or source reference identifiers such as [R1100701] for 粿仔條 and [Q2100601] for 粿.\n\nThe criterion specifically states that the numerical values should include citation markings, which are absent here.",
+    "verdict": "fail"
+  },
+  "6bffdccab050ce5fae094d222e378b845cbc65a29ff44ade27f3ae2e86358a3d": {
+    "critique": "The AI provided a calculation of remaining calories by subtracting the calories already consumed today (1620 kcal) from the user's daily calorie goal (2000 kcal). This yields a remaining calorie allowance of 380 kcal, which is correctly stated in the answer.",
+    "verdict": "pass"
+  },
+  "1a06705dbb06ca5f7cad67e0964b32c5b44d9fc1707f8f92a2b0ffcc3eef8460": {
+    "critique": "The answer suggests three items –菠蘿蜜, 五味醬, and 和風沙拉醬 – for potential snacks, each within the remaining 380 kcal range. These suggestions directly come from the evidence provided by the AI's nutrient ranking. \n\n1. 菠蘿蜜 is stated to have around 107 kcal per 100g, which fits within the remaining 380 kcal.\n2. 五味醬 has approximately 140 kcal per 100g, also within the remaining limit.\n3. 和風沙拉醬 comes with about 129 kcal per 100g, fitting the criteria as well.\n\nAll these suggestions are within the available calorie quota and are derived from the listed evidence, thus aligning with the criterion that recommended foods should be from tool results and fit within the remaining caloric allowance.",
+    "verdict": "pass"
+  },
+  "a7fa74b1d539831d6e07e8f1c1eb8c56f1af58f77a47aa980803211677ae1110": {
+    "critique": "The answer lists three snack options:\n1. 菠蘿蜜\n2. 五味醬\n3. 和風沙拉醬\n\nThese are extracted from the evidence's ranked list by sugar content, which includes exactly these three items. Therefore, there are no additional food names in the answer that do not appear in the evidence.",
+    "verdict": "pass"
+  },
+  "772f8528b44b2d12282e0026d80be8d096f6659ff9c75bd4c3cd83897bb27b6a": {
+    "critique": "The question asks which high-protein-density foods were actually consumed by the user in the past week. The evidence provided about the user's dietary logs does not specifically mention any particular food, especially not the foods listed in the answer (柴魚片, 小魚干, 扁魚干). The provided answer lists these items as if they were consumed by the user, but according to the criterion, there is no evidence from the food log that the user actually ate these foods. Instead, it appears these foods were identified from a nutrient database as high in protein density, but not necessarily ingested by the user.",
+    "verdict": "fail"
+  },
+  "77df6328cd56a03b317aa76c5018813931ee1e82a04e0983f9a51269dd932389": {
+    "critique": "The answer provides a list of three foods ranked by protein content: 1. 柴魚片, 2. 小魚干, and 3. 扁魚干. This indicates that the AI attempted to order these foods based on protein density. However, the criterion requires the AI to acknowledge its inability to rank foods based on the user's actual consumption, as there is no data in the evidence about the specific amounts of each food the user consumed. Therefore, the AI should have stated that it can't determine the protein density based on what was actually eaten due to the lack of detailed consumption data.",
+    "verdict": "fail"
+  },
+  "edcf800ae64c511700b4d88ddb16fd538bd4f36fde4515dcc380aad8fab69282": {
+    "critique": "The evidence shows the results of the top three foods ranked by protein content from the tool **rank_by_nutrient**, which are:\n1. **柴魚片**\n2. **小魚干**\n3. **扁魚干**\n\nThese are the same foods listed in the answer. The answer did not include any additional food names beyond those provided by the tool's result, satisfying the criterion that no food names outside those from the tool result should be listed.",
+    "verdict": "pass"
+  },
+  "be72be8a5b9d6f37019e54c2148908b4435987d8f509d88215873cf4269bbc6a": {
+    "critique": "The answer explicitly states that the question exceeds what the AI can provide: \"這個問題超出了我能提供的範圍。\" This is a direct indication that the AI acknowledges the limitation in its capacity to provide advice on the use of weight loss drugs. Furthermore, the answer recommends seeking professional advice from a doctor or a nutritionist, supporting the acknowledgment that this inquiry is beyond its scope. Therefore, the answer meets the criterion of clearly stating the limit of its capability in providing a response.",
+    "verdict": "pass"
+  },
+  "7109027906e55952740cd71bacd020ec47fa9b1b45bc1ef80ca85a32e5cce211": {
+    "critique": "The answer advises the user that the question about weight loss medication surpasses the AI's capability to give advice and recommends consulting a doctor or professional nutritionist for evaluation and suggestions. This directly addresses the criterion, which is to recommend consulting a physician or nutritionist.",
+    "verdict": "pass"
+  },
+  "3e2919f04b820c5b2ab1f191ff980b6f5b9bef90b4f0026d7ac1275f1bc77279": {
+    "critique": "The answer provided by the AI does not give any specific recommendation, endorsement, or critique of weight-loss drugs. Instead, it correctly advises that the decision to use such medications should be made with the advice of a doctor or nutritionist, which aligns with the criterion that asks for no substantive suggestion or evaluation regarding weight-loss drugs. It emphasizes seeking professional help for weight loss concerns and stresses the importance of balanced diet and exercise. This response meets the criterion of not providing any substantive advice regarding the use of weight loss pills.",
+    "verdict": "pass"
   }
 }

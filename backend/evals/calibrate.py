@@ -18,11 +18,39 @@ import csv
 import sys
 from pathlib import Path
 
-from app.rag.qa import build_contexts
 from evals.cache import JudgeCache
 from evals.judge import judge_rubric
 
 VALID_LABELS = {"pass", "fail"}
+
+
+def _evidence(row: dict) -> str:
+    """從歸檔的一列取出「AI 當時看到的東西」。
+
+    兩種 CSV 形態都要支援：
+
+        agent（2026-09-14 之後）  tool_results 欄，含呼叫參數與工具回傳
+        固定流程（之前的兩次跑）    沒有這一欄，只能退回重跑檢索
+
+    重跑檢索是**下策**，因為它重現的是「當時大概會拿到什麼」而不是
+    「當時真的拿到什麼」。固定流程的檢索沒有隨機性，所以退路勉強可用；
+    agent 不行——它自己選工具，重跑等於換一份證據。
+
+    找不到證據時直接失敗，不要靜悄悄地送出空的 <evidence>：
+    那會讓 judge 把每一條「數值有依據」都判成 fail，而數字看起來仍然正常。
+    """
+    archived = row.get("tool_results", "").strip()
+    if archived:
+        return archived
+
+    # 固定流程時代的 CSV。延後 import：agent 的 CSV 不需要碰資料庫。
+    from app.rag.qa import build_contexts
+
+    user_ctx, know_ctx, _ = build_contexts(row["question"], user_id=1)
+    return (
+        f"<user_food_log>\n{user_ctx}\n</user_food_log>\n\n"
+        f"<nutrition_reference>\n{know_ctx}\n</nutrition_reference>"
+    )
 
 
 def cohens_kappa(tp: int, fn: int, fp: int, tn: int) -> float:
@@ -58,11 +86,6 @@ def main() -> None:
         print(f"還有 {len(unlabeled)} 列沒標註，無法校準。")
         sys.exit(1)
 
-    # context 每題只算一次，同一題的多條 rubric 共用。
-    # 這裡重算而不是從 CSV 讀，是因為 context 可重現而答案不可重現——
-    # 答案一定要用歸檔的那個，否則 judge 跟人工看的不是同一份東西。
-    context_cache: dict[str, tuple[str, str]] = {}
-
     # judge 判定的快取。校準常常要反覆跑（改一條判準就重跑整批），
     # 輸入沒變的列直接讀快取，不重複付費。
     cache = JudgeCache()
@@ -73,17 +96,12 @@ def main() -> None:
 
     for row in rows:
         example_id = row["example_id"]
-        if example_id not in context_cache:
-            user_ctx, know_ctx, _ = build_contexts(row["question"], user_id=1)
-            context_cache[example_id] = (user_ctx, know_ctx)
-        user_ctx, know_ctx = context_cache[example_id]
 
         result = judge_rubric(
             question=row["question"],
             answer=row["answer"],
-            user_context=user_ctx,
-            knowledge_context=know_ctx,
             criterion=row["rubric"],
+            evidence=_evidence(row),
             cache=cache,
         )
 
