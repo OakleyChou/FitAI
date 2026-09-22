@@ -54,6 +54,18 @@ NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 # 不是份量假設——「一杯 300ml」是 prompt 明文要求模型自行估算的。
 NUTRIENT_VALUE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:大卡|kcal|公克|克|毫克|[gG]\b|mg)")
 
+# 食藥署整合編號：一個大寫字母加 5~7 位數字（A05001、I0410101）。
+#
+# 刻意不要求方括號緊貼編號。第一版寫成 r"\[([A-Z]\d{5,7})\]"，
+# 結果模型寫「[參考編號 J0800401]」就被判定成「沒有引用標記」——
+# 它其實引用了，只是多加了兩個字。L1 要檢查的是**編號在不在、對不對**，
+# 不是括號長什麼樣；把格式潔癖寫進規則只會製造假警報。
+CITATION_RE = re.compile(r"\b([A-Z]\d{5,7})\b")
+
+# 會回傳營養資料庫內容的工具。只有這些的結果需要附來源編號——
+# 使用者自己的飲食紀錄是他自己輸入的，沒有外部出處可引。
+KNOWLEDGE_TOOLS = {"search_nutrition", "rank_by_nutrient"}
+
 # 允許模型做份量換算時用的倍率。沒有這些，「35 大卡 × 3 杯 = 105」
 # 會被誤判成編造。
 SCALE_FACTORS = [0.25, 0.5, 1, 1.5, 2, 3, 4, 5, 10]
@@ -214,6 +226,27 @@ def run_l1_checks(example: dict, result: AgentResult) -> list[CheckResult]:
     # 這裡用 ToolCall.result（完整）而不是 result_preview（截短）——
     # 比對模型實際看到的全部內容，截短過的會製造大量假警報。
     tool_output = "\n".join(c.result for c in result.tool_calls)
+
+    # 引用標記。dataset 有三條 rubric 在考這件事，2026-09-22 之前
+    # SYSTEM_PROMPT 卻從來沒要求過——三條永遠 fail，而 L1 一條都沒抓到。
+    # 規格對齊之後，這是格式問題，正則又快又準又免費，不該佔用 judge。
+    used = {c.name for c in result.tool_calls if not c.unavailable}
+    cited = set(CITATION_RE.findall(answer))
+    available = set(CITATION_RE.findall(tool_output))
+
+    if used & KNOWLEDGE_TOOLS and available:
+        checks.append(CheckResult("有引用標記", bool(cited)))
+
+    # 編出來的編號比沒有編號更糟：它看起來可稽核，實際上查不到。
+    fabricated = sorted(cited - available)
+    checks.append(
+        CheckResult(
+            "引用標記真實存在",
+            not fabricated,
+            f"工具結果中沒有：{', '.join(fabricated)}" if fabricated else "",
+        )
+    )
+
     pool = [float(n) for n in NUMBER_RE.findall(tool_output)]
     claimed = {float(n) for n in NUTRIENT_VALUE_RE.findall(answer)}
     ungrounded = sorted(n for n in claimed if not _is_derivable(n, pool))
