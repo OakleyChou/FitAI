@@ -51,6 +51,45 @@ class FoodLogUpdate(BaseModel):
 
 
 
+class MealEntry(BaseModel):
+    """當日摘要裡的一餐。時間已經換算成台北時間的 HH:MM。"""
+
+    id: int
+    logged_at_local: str
+    description: str
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+
+
+class NutrientTotals(BaseModel):
+    calories: float = 0
+    protein_g: float = 0
+    carbs_g: float = 0
+    fat_g: float = 0
+
+
+class DaySummary(BaseModel):
+    """某一天的飲食摘要。
+
+    計算由後端負責（見 app/nutrition.py），前端只顯示。
+    讓前端自己篩日期加總的話，同一個數字會有兩份實作，
+    而只有後端那份有測試守著。
+    """
+
+    date: str
+    meals: list[MealEntry] = Field(default_factory=list)
+    totals: NutrientTotals = Field(default_factory=NutrientTotals)
+    calories_goal: Optional[float] = None
+    protein_goal_g: Optional[float] = None
+    # 可以是負數——吃超過了要讓使用者看到超了多少。
+    calories_remaining: Optional[float] = None
+    # 蛋白質目標是依體重推估的，不是使用者設定的。前端要標明，
+    # 否則使用者會以為那是他自己設過的數字。
+    protein_goal_is_estimated: bool = False
+
+
 class ChatRequest(BaseModel):
     """對話請求。
 
