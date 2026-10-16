@@ -1,0 +1,7 @@
+# 前端刻意用自己的依賴清單，不共用 backend 的 pyproject.toml。
+#
+# 這不只是整潔問題：前端容器裡**沒有** backend 的程式碼，
+# 所以 `from app.agent.loop import run_agent` 這種寫法會直接 ImportError。
+# 「前端不碰業務邏輯」這條規則因此由環境強制執行，不靠自律。
+streamlit>=1.40,<2
+requests>=2.32,<3
