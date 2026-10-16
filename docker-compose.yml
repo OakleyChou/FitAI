@@ -52,5 +52,25 @@ services:
       db:
         condition: service_healthy
 
+  frontend:
+    build: ./frontend
+    container_name: fitai-frontend
+    environment:
+      # 容器內要用 **服務名** 當 hostname，不是 localhost——
+      # 前端容器裡的 localhost 指的是它自己。
+      #
+      # 這裡成立的前提是 Streamlit 屬於**伺服器端渲染**：API 呼叫
+      # 發生在容器內，不是在瀏覽器裡。如果換成 React 那種瀏覽器直接
+      # 打 API 的架構，這個值就得改成 http://localhost:8000 並處理 CORS。
+      API_BASE_URL: http://api:8000
+    ports:
+      # 瀏覽器跑在你的電腦上，不在 Docker 網路裡，所以開 localhost:8501。
+      - "8501:8501"
+    depends_on:
+      # 只等 api 容器啟動，不等它「能服務」——api 沒有 healthcheck。
+      # 前端自己有處理後端連不上的情況（側邊欄會顯示異常與修法），
+      # 所以不需要在這裡擋住啟動。
+      - api
+
 volumes:
   pgdata:
