@@ -1,18 +1,22 @@
 import logging
 
+from pydantic import BaseModel, Field
+
 import instructor
 from langfuse.openai import openai
-from pydantic import BaseModel
 from langfuse.decorators import langfuse_context, observe
 
 from app.config import settings
 from app.database import SessionLocal
 from app.extraction import (
+    NUTRIENT_FIELDS,
     FoodItem,  # noqa: F401  其他模組從這裡 import，保留相容
     FoodLogExtraction,
     ItemMatch,
     ParsedItem,
     build_extraction,
+    fill_estimates,
+    missing_estimates,
 )
 from app.models import PromptVersion
 from app.rag.retrieval import search
@@ -85,28 +89,30 @@ def add_prompt_version(name: str, content: str) -> PromptVersion:
 CANDIDATES_PER_ITEM = 5
 
 
-class _ParsedMeal(BaseModel):
-    """第一階段的 response_model。包一層是因為 instructor 對 list[T] 的
-    支援不如單一 model 穩定，而且多一個欄位可以放模型的整體判斷。"""
-
-    items: list[ParsedItem]
-
-
-class _MatchResult(BaseModel):
-    matches: list[ItemMatch]
+# 兩階段都直接用 list[T] 當 response_model，不要再包一層 {"items": [...]}。
+#
+# 我原本包了一層，理由是「instructor 對 list[T] 的支援不如單一 model 穩定」——
+# 那個理由是錯的：這個專案最初的 extract_food_log 就是用
+# response_model=list[FoodItem]，跑了三個月沒出過問題。
+#
+# 包一層造成的實際後果（2026-11-05）：多項目的輸入讓模型回傳**扁平的單一物件**
+# 而不是 {"matches": [...]}，instructor 重試四次全失敗，然後整個 extract_food_log
+# 拋例外 → POST /food_logs 回 500。其中一次還把 null 回成字串 "null"。
+#
+# 通則：**多一層巢狀就多一個模型可以搞錯的地方。** 回應結構越扁平越可靠。
 
 
 def _parse_items(raw_text: str) -> list[ParsedItem]:
     """第一階段：LLM 只辨識項目與份量，不估營養素。"""
     result = client.chat.completions.create(
         model=settings.openai_model_cheap,
-        response_model=_ParsedMeal,
+        response_model=list[ParsedItem],
         messages=[
             {"role": "system", "content": get_active_prompt(FOOD_PARSE_PROMPT_NAME)},
             {"role": "user", "content": raw_text},
         ],
     )
-    return result.items
+    return result
 
 
 def _retrieve_candidates(items: list[ParsedItem]) -> dict[str, dict]:
@@ -193,7 +199,7 @@ def _match_items(raw_text: str, items: list[ParsedItem], candidates: str) -> lis
     """第二階段：判斷每一項在資料庫裡有沒有對應。"""
     result = client.chat.completions.create(
         model=settings.openai_model_cheap,
-        response_model=_MatchResult,
+        response_model=list[ItemMatch],
         messages=[
             {"role": "system", "content": get_active_prompt(FOOD_MATCH_PROMPT_NAME)},
             {
@@ -202,7 +208,70 @@ def _match_items(raw_text: str, items: list[ParsedItem], candidates: str) -> lis
             },
         ],
     )
-    return result.matches
+    return result
+
+
+class _ItemEstimate(BaseModel):
+    """補估用的輸出。index 對應 FoodLogExtraction.items 的位置。"""
+
+    index: int
+    calories: float = Field(ge=0)
+    protein_g: float = Field(ge=0)
+    carbs_g: float = Field(ge=0)
+    fat_g: float = Field(ge=0)
+
+
+def _estimate_missing(extraction: FoodLogExtraction) -> FoodLogExtraction:
+    """為估不出熱量的項目再要一次估算。
+
+    ## 為什麼需要第三次呼叫
+
+    配對那一步的 prompt 要求「無論相不相符都要填自己的估算值」，但模型**會漏**。
+    漏掉的項目變成 0 大卡，然後**靜悄悄地從合計裡消失**——
+    實測：「午餐吃一碗泡麵＋梅花豬肉片」合計 947 大卡，少算了整塊豬肉。
+    畫面上那一項還在，只是數字是 0，比整個請求失敗更難發現。
+
+    ## 為什麼用舊的單階段 prompt
+
+    `FOOD_EXTRACTION_SYSTEM_PROMPT` 是改成兩階段之前的那一份，仍然在版控裡、
+    也仍然種進資料庫。它的職責正好就是「估算營養素」，
+    而且**不給它看候選清單**，所以不會被資料庫的每 100 公克數值錨定（見 pitfalls #45）。
+
+    只有真的有缺口時才呼叫，所以多數記錄仍然是兩次呼叫。
+    """
+    missing = missing_estimates(extraction)
+    if not missing:
+        return extraction
+
+    lines = [
+        f"[{i}] {extraction.items[i].name}，份量 {extraction.items[i].portion_g:.0f} 公克"
+        for i in missing
+    ]
+    try:
+        results = client.chat.completions.create(
+            model=settings.openai_model_cheap,
+            response_model=list[_ItemEstimate],
+            messages=[
+                {
+                    "role": "system",
+                    "content": get_active_prompt(FOOD_EXTRACTION_PROMPT_NAME)
+                    + "\n\n每一項回傳 index（照輸入的編號）與該份量的營養素總量。",
+                },
+                {"role": "user", "content": "\n".join(lines)},
+            ],
+        )
+    except Exception:
+        # 補估失敗就保留 0 並維持 note 的提示。降級要誠實，不要讓整筆記錄失敗——
+        # 使用者寧可看到「這一項估不出來」也不要整個存不進去。
+        logger.exception("補估失敗，保留 0 大卡與手動修正提示")
+        return extraction
+
+    estimates = {
+        r.index: {f: getattr(r, f) for f in NUTRIENT_FIELDS}
+        for r in results
+        if r.index in set(missing)
+    }
+    return fill_estimates(extraction, estimates)
 
 
 @observe()
@@ -241,7 +310,10 @@ def extract_food_log(raw_text: str) -> FoodLogExtraction:
     candidates = _format_candidates(parsed, db_rows)
     matches = _match_items(raw_text, parsed, candidates)
 
-    return build_extraction(raw_text, parsed, matches, db_rows)
+    extraction = build_extraction(raw_text, parsed, matches, db_rows)
+    # 配對那一步漏填估算值的項目會是 0 大卡，而 0 會靜悄悄地從合計裡消失。
+    # 只有真的有缺口時才多呼叫一次。
+    return _estimate_missing(extraction)
 
 
 if __name__ == "__main__":
