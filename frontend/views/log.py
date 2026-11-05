@@ -20,6 +20,50 @@ EXAMPLES = [
 ]
 
 
+def _render_items(created: dict) -> None:
+    """逐項顯示數值的來源。
+
+    這是整個記錄流程最重要的一塊資訊。擷取改成兩階段之後，每一項的數字
+    要嘛來自食藥署資料庫（有編號可回溯），要嘛是 LLM 估的——
+    **不區分的話，可靠的數字和猜測在畫面上看起來一模一樣。**
+
+    實際踩過的例子：「一杯無糖鮮奶茶」舊版估 50 大卡，真實約 133 大卡
+    （資料庫「鮮奶茶(無糖)」26.5 大卡/100g × 500 毫升）。低估 2.6 倍，
+    而使用者只會以為自己喝的東西很健康。
+    """
+    items = created.get("items") or []
+    if not items:
+        return
+
+    grounded = created.get("grounded_count", 0)
+    st.caption(f"**{len(items)} 個項目，其中 {grounded} 項有食藥署資料庫佐證**")
+
+    for item in items:
+        if item["grounded"]:
+            st.markdown(
+                f"✅ **{item['name']}** {item['portion_g']:.0f}g → "
+                f"{item['calories']:.0f} 大卡　"
+                f"<small>資料來源：{item['db_name']}"
+                f"（食藥署 {item['source_ref']}）</small>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"⚠️ **{item['name']}** {item['portion_g']:.0f}g → "
+                f"{item['calories']:.0f} 大卡　<small>LLM 估算，資料庫無對應項目</small>",
+                unsafe_allow_html=True,
+            )
+        if item.get("note"):
+            st.caption(f"　　{item['note']}")
+
+    if grounded < len(items):
+        st.info(
+            "資料庫收一般食材與市售飲品，**不收複合餐點**（便當、吐司夾餡、定食）。"
+            "標 ⚠️ 的項目數值是估算的，份量講得越具體估得越準。",
+            icon="ℹ️",
+        )
+
+
 def _submit(raw_text: str) -> None:
     try:
         with st.spinner("解析中…（要呼叫一次 LLM）"):
@@ -37,10 +81,8 @@ def _submit(raw_text: str) -> None:
     c2.metric("蛋白質", f"{created['protein_g']:.1f} g")
     c3.metric("碳水", f"{created['carbs_g']:.1f} g")
     c4.metric("脂肪", f"{created['fat_g']:.1f} g")
-    st.caption(
-        "⚠️ 以上是 LLM 依描述**估算**的，不是測量值。"
-        "份量講得越具體（「一碗白飯」而不是「飯」）估得越準。"
-    )
+
+    _render_items(created)
 
 
 def _render_recent() -> None:
