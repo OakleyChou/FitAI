@@ -1,0 +1,1094 @@
+{
+  "runs": 3,
+  "results": [
+    {
+      "id": "milk_tea_unsweetened",
+      "input": "早上喝了一杯鮮奶茶",
+      "origin": "回報 2026-10-16",
+      "runs": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "calories_mean": 132.5385,
+      "calories_spread": 0.0,
+      "attempts": [
+        {
+          "crashed": null,
+          "calories": 132.5385,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "鮮奶茶",
+              "portion_g": 500.0,
+              "calories": 132.5385,
+              "grounded": true,
+              "db_name": "鮮奶茶(無糖)"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "133 大卡（期望 100~180）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「鮮奶茶」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 鮮奶茶(無糖)",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 132.5385,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "鮮奶茶",
+              "portion_g": 500.0,
+              "calories": 132.5385,
+              "grounded": true,
+              "db_name": "鮮奶茶(無糖)"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "133 大卡（期望 100~180）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「鮮奶茶」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 鮮奶茶(無糖)",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 132.5385,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "鮮奶茶",
+              "portion_g": 500.0,
+              "calories": 132.5385,
+              "grounded": true,
+              "db_name": "鮮奶茶(無糖)"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "133 大卡（期望 100~180）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「鮮奶茶」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 鮮奶茶(無糖)",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "instant_noodle_basis",
+      "input": "一碗泡麵",
+      "origin": "回報 2026-11-05",
+      "runs": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "calories_mean": 425.95605,
+      "calories_spread": 0.0,
+      "attempts": [
+        {
+          "crashed": null,
+          "calories": 425.95605,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "泡麵",
+              "portion_g": 90.0,
+              "calories": 425.95605,
+              "grounded": true,
+              "db_name": "泡麵(牛肉口味)"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "426 大卡（期望 350~650）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「泡麵」份量合理",
+              "passed": true,
+              "detail": "90 公克（期望 70~130）",
+              "severity": "fail"
+            },
+            {
+              "name": "「泡麵」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 泡麵(牛肉口味)",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 425.95605,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "泡麵",
+              "portion_g": 90.0,
+              "calories": 425.95605,
+              "grounded": true,
+              "db_name": "泡麵(牛肉口味)"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "426 大卡（期望 350~650）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「泡麵」份量合理",
+              "passed": true,
+              "detail": "90 公克（期望 70~130）",
+              "severity": "fail"
+            },
+            {
+              "name": "「泡麵」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 泡麵(牛肉口味)",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 425.95605,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "泡麵",
+              "portion_g": 90.0,
+              "calories": 425.95605,
+              "grounded": true,
+              "db_name": "泡麵(牛肉口味)"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "426 大卡（期望 350~650）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「泡麵」份量合理",
+              "passed": true,
+              "detail": "90 公克（期望 70~130）",
+              "severity": "fail"
+            },
+            {
+              "name": "「泡麵」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 泡麵(牛肉口味)",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "pork_slices_wrong_match",
+      "input": "五片豬肉片",
+      "origin": "回報 2026-11-05",
+      "runs": 3,
+      "passed_runs": 0,
+      "pass_rate": 0.0,
+      "calories_mean": 525.0,
+      "calories_spread": 0.0,
+      "attempts": [
+        {
+          "crashed": null,
+          "calories": 525.0,
+          "grounded": "0/1",
+          "items": [
+            {
+              "name": "豬肉片",
+              "portion_g": 75.0,
+              "calories": 525.0,
+              "grounded": false,
+              "db_name": null
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": false,
+              "detail": "525 大卡（期望 150~400）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「豬肉」份量合理",
+              "passed": true,
+              "detail": "75 公克（期望 60~120）",
+              "severity": "fail"
+            },
+            {
+              "name": "「豬肉」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": false
+        },
+        {
+          "crashed": null,
+          "calories": 525.0,
+          "grounded": "0/1",
+          "items": [
+            {
+              "name": "豬肉片",
+              "portion_g": 100.0,
+              "calories": 525.0,
+              "grounded": false,
+              "db_name": null
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": false,
+              "detail": "525 大卡（期望 150~400）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「豬肉」份量合理",
+              "passed": true,
+              "detail": "100 公克（期望 60~120）",
+              "severity": "fail"
+            },
+            {
+              "name": "「豬肉」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": false
+        },
+        {
+          "crashed": null,
+          "calories": 525.0,
+          "grounded": "0/1",
+          "items": [
+            {
+              "name": "豬肉片",
+              "portion_g": 75.0,
+              "calories": 525.0,
+              "grounded": false,
+              "db_name": null
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": false,
+              "detail": "525 大卡（期望 150~400）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「豬肉」份量合理",
+              "passed": true,
+              "detail": "75 公克（期望 60~120）",
+              "severity": "fail"
+            },
+            {
+              "name": "「豬肉」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": false
+        }
+      ]
+    },
+    {
+      "id": "white_rice",
+      "input": "一碗白飯",
+      "origin": "回歸守衛",
+      "runs": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "calories_mean": 330.84746666666666,
+      "calories_spread": 106.27120000000002,
+      "attempts": [
+        {
+          "crashed": null,
+          "calories": 366.2712,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "白飯",
+              "portion_g": 200.0,
+              "calories": 366.2712,
+              "grounded": true,
+              "db_name": "白飯"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "366 大卡（期望 200~420）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 260.0,
+          "grounded": "0/1",
+          "items": [
+            {
+              "name": "白飯",
+              "portion_g": 200.0,
+              "calories": 260.0,
+              "grounded": false,
+              "db_name": null
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "260 大卡（期望 200~420）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 366.2712,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "白飯",
+              "portion_g": 200.0,
+              "calories": 366.2712,
+              "grounded": true,
+              "db_name": "白飯"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "366 大卡（期望 200~420）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "boiled_eggs_count",
+      "input": "兩顆水煮蛋",
+      "origin": "回歸守衛",
+      "runs": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "calories_mean": 144.2187,
+      "calories_spread": 0.0,
+      "attempts": [
+        {
+          "crashed": null,
+          "calories": 144.2187,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "水煮蛋",
+              "portion_g": 100.0,
+              "calories": 144.2187,
+              "grounded": true,
+              "db_name": "雞水煮蛋"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "144 大卡（期望 110~190）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「水煮蛋」份量合理",
+              "passed": true,
+              "detail": "100 公克（期望 80~120）",
+              "severity": "fail"
+            },
+            {
+              "name": "「水煮蛋」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 雞水煮蛋",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 144.2187,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "水煮蛋",
+              "portion_g": 100.0,
+              "calories": 144.2187,
+              "grounded": true,
+              "db_name": "雞水煮蛋"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "144 大卡（期望 110~190）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「水煮蛋」份量合理",
+              "passed": true,
+              "detail": "100 公克（期望 80~120）",
+              "severity": "fail"
+            },
+            {
+              "name": "「水煮蛋」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 雞水煮蛋",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 144.2187,
+          "grounded": "1/1",
+          "items": [
+            {
+              "name": "水煮蛋",
+              "portion_g": 100.0,
+              "calories": 144.2187,
+              "grounded": true,
+              "db_name": "雞水煮蛋"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "144 大卡（期望 110~190）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「水煮蛋」份量合理",
+              "passed": true,
+              "detail": "100 公克（期望 80~120）",
+              "severity": "fail"
+            },
+            {
+              "name": "「水煮蛋」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 雞水煮蛋",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "composite_bento",
+      "input": "雞胸肉便當配燙青菜",
+      "origin": "回歸守衛",
+      "runs": 3,
+      "passed_runs": 2,
+      "pass_rate": 0.6666666666666666,
+      "calories_mean": 579.6702833333334,
+      "calories_spread": 475.0,
+      "attempts": [
+        {
+          "crashed": null,
+          "calories": 845.8932,
+          "grounded": "1/2",
+          "items": [
+            {
+              "name": "雞胸肉便當",
+              "portion_g": 500.0,
+              "calories": 825.0,
+              "grounded": false,
+              "db_name": null
+            },
+            {
+              "name": "燙青菜",
+              "portion_g": 150.0,
+              "calories": 20.8932,
+              "grounded": true,
+              "db_name": "青江菜(水耕)(7月取樣)"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "846 大卡（期望 450~1000）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「便當」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 522.22445,
+          "grounded": "1/2",
+          "items": [
+            {
+              "name": "雞胸肉便當",
+              "portion_g": 500.0,
+              "calories": 500.0,
+              "grounded": false,
+              "db_name": null
+            },
+            {
+              "name": "青菜",
+              "portion_g": 150.0,
+              "calories": 22.22445,
+              "grounded": true,
+              "db_name": "青江菜(土植)(7月取樣)"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "522 大卡（期望 450~1000）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「便當」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 370.8932,
+          "grounded": "1/2",
+          "items": [
+            {
+              "name": "雞胸肉便當",
+              "portion_g": 500.0,
+              "calories": 350.0,
+              "grounded": false,
+              "db_name": null
+            },
+            {
+              "name": "燙青菜",
+              "portion_g": 150.0,
+              "calories": 20.8932,
+              "grounded": true,
+              "db_name": "青江菜(水耕)(7月取樣)"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": false,
+              "detail": "371 大卡（期望 450~1000）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「便當」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": false
+        }
+      ]
+    },
+    {
+      "id": "braised_pork_rice",
+      "input": "一碗滷肉飯",
+      "origin": "回歸守衛",
+      "runs": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "calories_mean": 550.0,
+      "calories_spread": 75.0,
+      "attempts": [
+        {
+          "crashed": null,
+          "calories": 525.0,
+          "grounded": "0/1",
+          "items": [
+            {
+              "name": "滷肉飯",
+              "portion_g": 500.0,
+              "calories": 525.0,
+              "grounded": false,
+              "db_name": null
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "525 大卡（期望 400~850）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「滷肉飯」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 525.0,
+          "grounded": "0/1",
+          "items": [
+            {
+              "name": "滷肉飯",
+              "portion_g": 500.0,
+              "calories": 525.0,
+              "grounded": false,
+              "db_name": null
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "525 大卡（期望 400~850）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「滷肉飯」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 600.0,
+          "grounded": "0/1",
+          "items": [
+            {
+              "name": "滷肉飯",
+              "portion_g": 500.0,
+              "calories": 600.0,
+              "grounded": false,
+              "db_name": null
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "600 大卡（期望 400~850）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「滷肉飯」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "multi_item_burger_cola",
+      "input": "我晚上吃了一個漢堡加一杯可樂",
+      "origin": "回歸守衛",
+      "runs": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "calories_mean": 590.1333333333333,
+      "calories_spread": 249.99999999999994,
+      "attempts": [
+        {
+          "crashed": null,
+          "calories": 506.8,
+          "grounded": "1/2",
+          "items": [
+            {
+              "name": "漢堡",
+              "portion_g": 200.0,
+              "calories": 250.0,
+              "grounded": false,
+              "db_name": null
+            },
+            {
+              "name": "可樂",
+              "portion_g": 500.0,
+              "calories": 256.8,
+              "grounded": true,
+              "db_name": "可樂"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "507 大卡（期望 400~950）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「可樂」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 可樂",
+              "severity": "fail"
+            },
+            {
+              "name": "「漢堡」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 756.8,
+          "grounded": "1/2",
+          "items": [
+            {
+              "name": "漢堡",
+              "portion_g": 200.0,
+              "calories": 500.0,
+              "grounded": false,
+              "db_name": null
+            },
+            {
+              "name": "可樂",
+              "portion_g": 500.0,
+              "calories": 256.8,
+              "grounded": true,
+              "db_name": "可樂"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "757 大卡（期望 400~950）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「可樂」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 可樂",
+              "severity": "fail"
+            },
+            {
+              "name": "「漢堡」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 506.8,
+          "grounded": "1/2",
+          "items": [
+            {
+              "name": "漢堡",
+              "portion_g": 200.0,
+              "calories": 250.0,
+              "grounded": false,
+              "db_name": null
+            },
+            {
+              "name": "可樂",
+              "portion_g": 500.0,
+              "calories": 256.8,
+              "grounded": true,
+              "db_name": "可樂"
+            }
+          ],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "507 大卡（期望 400~950）",
+              "severity": "fail"
+            },
+            {
+              "name": "沒有 0 大卡的項目",
+              "passed": true,
+              "detail": "",
+              "severity": "fail"
+            },
+            {
+              "name": "「可樂」應有資料庫佐證",
+              "passed": true,
+              "detail": "配到 可樂",
+              "severity": "fail"
+            },
+            {
+              "name": "「漢堡」不應有資料庫佐證",
+              "passed": true,
+              "detail": "無佐證（LLM 估算）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "not_food",
+      "input": "今天天氣很好",
+      "origin": "回歸守衛",
+      "runs": 3,
+      "passed_runs": 3,
+      "pass_rate": 1.0,
+      "calories_mean": 0.0,
+      "calories_spread": 0.0,
+      "attempts": [
+        {
+          "crashed": null,
+          "calories": 0.0,
+          "grounded": "0/0",
+          "items": [],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "0 大卡（期望 0~0）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 0.0,
+          "grounded": "0/0",
+          "items": [],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "0 大卡（期望 0~0）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "crashed": null,
+          "calories": 0.0,
+          "grounded": "0/0",
+          "items": [],
+          "checks": [
+            {
+              "name": "熱量在可接受區間",
+              "passed": true,
+              "detail": "0 大卡（期望 0~0）",
+              "severity": "fail"
+            }
+          ],
+          "passed": true
+        }
+      ]
+    }
+  ]
+}
