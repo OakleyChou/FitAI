@@ -51,6 +51,41 @@ class FoodLogUpdate(BaseModel):
 
 
 
+class ExtractedItemInfo(BaseModel):
+    """新增紀錄時回報的逐項明細。
+
+    `grounded` 是重點：它區分「數值來自食藥署資料庫」與「LLM 估的」。
+    不給前端這個欄位的話，可靠的數字和猜測在畫面上看起來一模一樣，
+    使用者就不知道哪一項需要核對。
+    """
+
+    name: str
+    portion_g: float
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+    grounded: bool
+    source_ref: Optional[str] = None
+    db_name: Optional[str] = None
+    note: str = ""
+
+
+class FoodLogCreated(FoodLog):
+    """POST /food_logs 的回應：存好的紀錄 + 這次擷取的逐項明細。
+
+    比 FoodLog 多的欄位都是**不落地**的——food_logs 表只存合計。
+    不另外存是刻意的：那需要加資料表欄位，而這個專案用 create_all 沒有
+    migration（見 pitfalls，create_all 不會修改既有表結構）。
+    而且明細最有價值的時刻就是剛記錄完、使用者還記得自己吃了什麼的時候。
+    """
+
+    items: list[ExtractedItemInfo] = Field(default_factory=list)
+    grounded_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
 class MealEntry(BaseModel):
     """當日摘要裡的一餐。時間已經換算成台北時間的 HH:MM。"""
 

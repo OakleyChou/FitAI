@@ -17,7 +17,21 @@ from app.routers import food_logs as food_logs_module
 from app.schemas import InputType
 
 EXTRACTION = FoodLogExtraction(
-    items=[FoodItem(name="雞胸肉", calories=165, protein_g=31, carbs_g=0, fat_g=3.6)],
+    items=[
+        FoodItem(
+            name="雞胸肉",
+            portion_g=100.0,
+            calories=165,
+            protein_g=31,
+            carbs_g=0,
+            fat_g=3.6,
+            # 這一項有食藥署資料庫佐證。擷取改成兩階段之後，
+            # 每一項都要記錄數值從哪裡來（見 app/extraction.py）。
+            grounded=True,
+            source_ref="I0410101",
+            db_name="雞里肌肉",
+        )
+    ],
     food_description="雞胸肉 100 公克",
     calories=165,
     protein_g=31,
@@ -72,6 +86,37 @@ def test_新增紀錄會存下LLM算出的營養素(client, user, db_session, fa
 
     # 回應正確不等於真的存進去了：少一個 db.commit() 兩者就會分岔。
     assert db_session.query(FoodLogModel).count() == 1
+
+
+def test_回應帶上逐項明細與佐證狀態(client, user, db_session, fake_llm):
+    """前端要靠 grounded 區分「資料庫數值」與「LLM 估的」。
+
+    不給這個欄位的話，可靠的數字和猜測在畫面上看起來一模一樣，
+    使用者就不知道哪一項需要核對。
+    """
+    r = client.post("/food_logs", json={"user_id": 1, "raw_text": "雞胸肉 100 公克"})
+
+    body = r.json()
+    assert body["grounded_count"] == 1
+    item = body["items"][0]
+    assert item["grounded"] is True
+    assert item["source_ref"] == "I0410101"
+    # db_name 要有：使用者說「雞胸肉」、資料庫叫「雞里肌肉」，
+    # 不給他看正式名稱就無法判斷配對對不對。
+    assert item["db_name"] == "雞里肌肉"
+    assert item["portion_g"] == 100.0
+
+
+def test_明細不落地到資料庫(client, user, db_session, fake_llm):
+    """food_logs 表只存合計。
+
+    明細不存是刻意的：那需要加欄位，而這個專案用 create_all 沒有 migration。
+    """
+    client.post("/food_logs", json={"user_id": 1, "raw_text": "雞胸肉 100 公克"})
+
+    row = db_session.query(FoodLogModel).one()
+    assert row.calories == 165
+    assert not hasattr(row, "items")
 
 
 def test_原始輸入會一起保留(client, user, db_session, fake_llm):

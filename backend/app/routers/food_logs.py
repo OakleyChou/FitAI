@@ -10,12 +10,20 @@ from app.models import FoodLog as FoodLogModel
 from app.models import User as UserModel
 from app.nutrition import local_today, summarize_day
 from app.rag.qa import _local_day_range_utc
-from app.schemas import DaySummary, FoodLog, FoodLogCreate, FoodLogUpdate, InputType
+from app.schemas import (
+    DaySummary,
+    ExtractedItemInfo,
+    FoodLog,
+    FoodLogCreate,
+    FoodLogCreated,
+    FoodLogUpdate,
+    InputType,
+)
 
 router = APIRouter(prefix="/food_logs", tags=["food_logs"])
 
 
-@router.post("", response_model=FoodLog)
+@router.post("", response_model=FoodLogCreated)
 def create_food_log(payload: FoodLogCreate, db: Session = Depends(get_db)):
     """新增一筆飲食紀錄：把使用者的自然語言輸入丟給 LLM 解析，再存進資料庫。"""
     # 先確認使用者存在，再呼叫 LLM。順序反過來的話有兩個問題：
@@ -42,7 +50,13 @@ def create_food_log(payload: FoodLogCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_log)  # 把自動產生的id 同步回new_log
 
-    return new_log
+    # 回應帶上逐項明細與佐證狀態。food_logs 表只存合計，明細不落地——
+    # 但剛記錄完是使用者最可能核對的時刻，這時不給他看就沒有第二次機會了。
+    return FoodLogCreated(
+        **{c.name: getattr(new_log, c.name) for c in new_log.__table__.columns},
+        items=[ExtractedItemInfo(**item.model_dump()) for item in extraction.items],
+        grounded_count=extraction.grounded_count,
+    )
 
 
 @router.get("", response_model=list[FoodLog])
