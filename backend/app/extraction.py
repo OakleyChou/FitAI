@@ -49,6 +49,16 @@ class ItemMatch(BaseModel):
         default=None, description="相符的資料庫項目整合編號；不相符則為 null"
     )
     reason: str = Field(default="", description="為什麼相符或不相符，一句話")
+    # 份量基準的修正。只在「資料庫量的是乾燥/生鮮產品，而使用者說的是
+    # 煮好後的重量」時才填——兩者差好幾倍。
+    #
+    # 這一步才做修正是因為**只有這一步看得到候選的前處理描述**。
+    # 第一階段解析份量時還不知道會配到哪一筆，無從判斷基準。
+    portion_g: float | None = Field(
+        default=None,
+        gt=0,
+        description="修正後的份量（該產品本身的重量）。不需要修正時不要填。",
+    )
     # 以下只在 source_ref 為 null 時填，是**整項**的量而非每 100 公克。
     calories: float | None = None
     protein_g: float | None = None
@@ -162,6 +172,56 @@ def scale_to_portion(per_100g: dict, portion_g: float) -> dict[str, float]:
     return {f: (per_100g.get(f) or 0.0) * factor for f in NUTRIENT_FIELDS}
 
 
+def missing_estimates(extraction: "FoodLogExtraction") -> list[int]:
+    """哪些項目估不出熱量。回傳在 items 裡的索引。
+
+    未佐證又 0 大卡的項目會**靜悄悄地從合計裡消失**——使用者看到的每日總量
+    偏低，而畫面上那一項還在，只是數字是 0。那比整個請求失敗更難發現。
+    """
+    return [
+        i for i, item in enumerate(extraction.items) if not item.grounded and item.calories == 0
+    ]
+
+
+def fill_estimates(
+    extraction: "FoodLogExtraction", estimates: dict[int, dict]
+) -> "FoodLogExtraction":
+    """把補估的數值填回去並重算合計。純函式。
+
+    Args:
+        extraction: 原本的結果。
+        estimates: 索引 → {calories, protein_g, carbs_g, fat_g}。
+            缺的欄位當 0；索引不存在的直接忽略。
+
+    Returns:
+        新的 FoodLogExtraction。合計重算——**忘記重算的話，明細對了但總量還是舊的**，
+        而那正是這個函式要修的問題。
+    """
+    items = list(extraction.items)
+    for i, values in estimates.items():
+        if not (0 <= i < len(items)):
+            continue
+        item = items[i]
+        if item.grounded:
+            # 有資料庫佐證的項目不該被 LLM 的估算覆蓋，那是降級不是升級。
+            continue
+        items[i] = item.model_copy(
+            update={
+                f: max(float(values.get(f) or 0.0), 0.0) for f in NUTRIENT_FIELDS
+            }
+            | {"note": item.note.replace("（無法估算熱量，請手動修正）", "")}
+        )
+
+    return FoodLogExtraction(
+        items=items,
+        food_description=extraction.food_description,
+        calories=sum(x.calories for x in items),
+        protein_g=sum(x.protein_g for x in items),
+        carbs_g=sum(x.carbs_g for x in items),
+        fat_g=sum(x.fat_g for x in items),
+    )
+
+
 def build_extraction(
     raw_text: str,
     parsed: list[ParsedItem],
@@ -195,16 +255,31 @@ def build_extraction(
             row = None
 
         if row is not None:
-            nutrients = scale_to_portion(row, item.portion_g)
+            # 份量基準的修正。資料庫量的是「每 100 公克的該產品」，而產品常常是
+            # 乾的、生的、未沖泡的；使用者說的份量卻是煮好後的重量。
+            #
+            # 實際踩到：「一碗泡麵」解析成 300 公克（煮好帶湯），但資料庫的
+            # 「泡麵(牛肉口味)」是乾燥麵塊加調味包（473 大卡/100 公克）。
+            # 300 × 4.733 = 1420 大卡，真實約 450——**名稱配對是對的，份量基準錯了**，
+            # 所以 name_matches 那道防線完全攔不到。
+            portion_g = item.portion_g
+            basis_note = ""
+            if match.portion_g and match.portion_g != item.portion_g:
+                basis_note = (
+                    f"（份量按資料庫基準修正：{item.portion_g:.0f} → {match.portion_g:.0f} 公克）"
+                )
+                portion_g = match.portion_g
+
+            nutrients = scale_to_portion(row, portion_g)
             items.append(
                 FoodItem(
                     name=item.name,
-                    portion_g=item.portion_g,
+                    portion_g=portion_g,
                     **nutrients,
                     grounded=True,
                     source_ref=match.source_ref,
                     db_name=row.get("name"),
-                    note=item.portion_note,
+                    note=item.portion_note + basis_note,
                 )
             )
             continue

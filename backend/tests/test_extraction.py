@@ -12,6 +12,8 @@ from app.extraction import (
     ItemMatch,
     ParsedItem,
     build_extraction,
+    fill_estimates,
+    missing_estimates,
     name_matches,
     scale_to_portion,
 )
@@ -71,6 +73,72 @@ def test_拒絕配對時退回估算並記錄原因():
     # 關鍵：沒有變成 525 × 5 = 2625
     assert item.calories == 600.0
     assert "臘肉" in item.note
+
+
+# ── 份量基準的修正 ────────────────────────────────────────────
+
+# 食藥署的「泡麵(牛肉口味)」量的是乾燥麵塊加調味包，不是煮好的一碗。
+# 鈉 2077 毫克/100 公克 就是乾燥產品的特徵。
+INSTANT_NOODLE = {
+    "name": "泡麵(牛肉口味)",
+    "calories": 473.3,
+    "protein_g": 9.6,
+    "carbs_g": 53.6,
+    "fat_g": 24.5,
+}
+
+
+def test_份量基準不同時用修正後的重量():
+    """這是實際踩到的 bug（2026-11-05）。
+
+    「一碗泡麵」解析成 300 公克（煮好帶湯），但資料庫量的是乾燥產品。
+    300 × 4.733 = 1420 大卡，真實約 450——**名稱配對完全正確**
+    （泡麵 ↔ 泡麵(牛肉口味)），所以 name_matches 那道防線攔不到。
+    """
+    parsed = [ParsedItem(name="泡麵", portion_g=300.0, portion_note="一碗泡麵約 300 公克")]
+    matches = [ItemMatch(index=0, source_ref="N1", portion_g=90.0, reason="資料庫量的是乾燥麵塊")]
+
+    result = build_extraction("一碗泡麵", parsed, matches, {"N1": INSTANT_NOODLE})
+
+    item = result.items[0]
+    assert item.grounded is True
+    assert item.portion_g == 90.0
+    assert item.calories == pytest.approx(425.97)
+    # 修正要留在 note 裡，否則使用者看到 90 公克會覺得「我吃的明明更多」
+    assert "300 → 90" in item.note
+
+
+def test_沒有基準問題時不修正份量():
+    """飲料、水果、肉片本來就是秤產品本身，基準一致。"""
+    parsed = [ParsedItem(name="無糖鮮奶茶", portion_g=450.0)]
+    matches = [ItemMatch(index=0, source_ref="X0000001")]
+
+    result = build_extraction("一杯無糖鮮奶茶", parsed, matches, {"X0000001": MILK_TEA})
+
+    assert result.items[0].portion_g == 450.0
+    assert "修正" not in result.items[0].note
+
+
+def test_修正值跟原值相同時不加註記():
+    """模型可能把原本的份量照抄進 portion_g。那不是修正，不該加註記。"""
+    parsed = [ParsedItem(name="無糖鮮奶茶", portion_g=450.0)]
+    matches = [ItemMatch(index=0, source_ref="X0000001", portion_g=450.0)]
+
+    result = build_extraction("一杯無糖鮮奶茶", parsed, matches, {"X0000001": MILK_TEA})
+
+    assert result.items[0].portion_g == 450.0
+    assert "修正" not in result.items[0].note
+
+
+def test_未佐證的項目不套用份量修正():
+    """沒配到資料庫時沒有「基準」可言，份量就是使用者吃的量。"""
+    parsed = [ParsedItem(name="鮪魚蛋吐司", portion_g=150.0)]
+    matches = [ItemMatch(index=0, source_ref=None, portion_g=50.0, calories=300.0)]
+
+    result = build_extraction("鮪魚蛋吐司", parsed, matches, {})
+
+    assert result.items[0].portion_g == 150.0
+    assert result.items[0].calories == 300.0
 
 
 # ── 份量換算 ──────────────────────────────────────────────────
@@ -243,3 +311,66 @@ def test_負數被夾到零():
     result = build_extraction("x", parsed, matches, {})
 
     assert result.items[0].calories == 0.0
+
+
+# ── 補估缺口 ──────────────────────────────────────────────────
+
+
+def _with_zero_item():
+    parsed = [
+        ParsedItem(name="泡麵", portion_g=100.0),
+        ParsedItem(name="梅花豬肉片", portion_g=150.0),
+    ]
+    matches = [
+        ItemMatch(index=0, source_ref="N1"),
+        ItemMatch(index=1, source_ref=None),  # 刻意不填估算值
+    ]
+    return build_extraction("午餐", parsed, matches, {"N1": INSTANT_NOODLE})
+
+
+def test_找出估不出熱量的項目():
+    """0 大卡的項目會靜悄悄地從合計裡消失。
+
+    實測：「午餐吃一碗泡麵＋梅花豬肉片」合計 947 大卡，少算了整塊豬肉。
+    畫面上那一項還在，只是數字是 0——比整個請求失敗更難發現。
+    """
+    assert missing_estimates(_with_zero_item()) == [1]
+
+
+def test_有佐證的項目不算缺口():
+    """有資料庫數值的項目即使熱量低也不是缺口。"""
+    extraction = _with_zero_item()
+    assert 0 not in missing_estimates(extraction)
+
+
+def test_補估之後合計要重算():
+    """忘記重算的話，明細對了但總量還是舊的——那正是要修的問題。"""
+    before = _with_zero_item()
+    assert before.calories == pytest.approx(473.3)
+
+    after = fill_estimates(before, {1: {"calories": 400.0, "protein_g": 30.0}})
+
+    assert after.items[1].calories == 400.0
+    assert after.calories == pytest.approx(873.3)
+    assert after.protein_g == pytest.approx(INSTANT_NOODLE["protein_g"] + 30.0)
+
+
+def test_補估會清掉手動修正的提示():
+    """補到數值之後那句提示就不該留著，否則使用者會以為還是壞的。"""
+    after = fill_estimates(_with_zero_item(), {1: {"calories": 400.0}})
+
+    assert "手動修正" not in after.items[1].note
+
+
+def test_補估不會覆蓋有佐證的項目():
+    """那是降級不是升級。資料庫數值的可信度高於 LLM 估算。"""
+    after = fill_estimates(_with_zero_item(), {0: {"calories": 9999.0}})
+
+    assert after.items[0].calories == pytest.approx(473.3)
+
+
+def test_補估的索引超出範圍時忽略():
+    """模型可能回一個不存在的 index。忽略它，不要 IndexError。"""
+    after = fill_estimates(_with_zero_item(), {99: {"calories": 400.0}})
+
+    assert after.calories == pytest.approx(473.3)
