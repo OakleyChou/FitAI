@@ -57,3 +57,6 @@ backend/data/*
 
 # 進度表匯出檔（真正的來源是 Google Sheet）
 fitai_schedule_*.csv
+
+# 個人筆記，不進版控
+docs/project_summary.md
