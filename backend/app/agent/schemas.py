@@ -11,10 +11,14 @@ description 的內容濃縮自 tools.py 的 docstring。兩邊要同步維護是
 from typing import Any, Callable
 
 from app.agent.tools import (
+    ALLOWED_CATEGORIES,
+    ALLOWED_MEAL_METRICS,
+    ALLOWED_MEAL_NUTRIENTS,
     ALLOWED_NUTRIENTS,
     ALLOWED_ORDERS,
     query_food_logs,
     rank_by_nutrient,
+    rank_my_meals,
     search_nutrition,
     summarize_food_logs,
 )
@@ -27,6 +31,7 @@ TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
     "search_nutrition": search_nutrition,
     "rank_by_nutrient": rank_by_nutrient,
     "summarize_food_logs": summarize_food_logs,
+    "rank_my_meals": rank_my_meals,
 }
 
 # user_id 不放進 schema——它由伺服器端從登入狀態決定，不該讓模型指定。
@@ -126,6 +131,22 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                             "用錯方向會拿到完全相反的清單，而它看起來仍然很合理。"
                         ),
                     },
+                    "category": {
+                        "type": "string",
+                        # enum 讓模型只能從這 18 個值裡選。少了它，模型會自己
+                        # 發明「點心類」「飲料」這種近似值，查出來是空清單。
+                        "enum": sorted(ALLOWED_CATEGORIES),
+                        "description": (
+                            "只在這個食物分類裡排序。**使用者講了食物類型就一定要傳。**"
+                            "沒有篩分類的話，「可以吃什麼點心」會退化成"
+                            "「任何符合熱量上限的東西」——實測推薦過豬腦與牛肚，"
+                            "數值全對但沒有人會把豬腦當點心。"
+                            "常見對應：點心→糕餅點心類；飲料→飲料類；水果→水果類；"
+                            "青菜→蔬菜類；肉→肉類；海鮮/魚→魚貝類；"
+                            "調味料/醬料→調味料及香辛料類。"
+                            "使用者只說「東西」「食物」而沒指定類型時，不要傳。"
+                        ),
+                    },
                     "max_calories": {
                         "type": "number",
                         "description": (
@@ -148,6 +169,71 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                     },
                 },
                 "required": ["nutrient"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "rank_my_meals",
+            "description": (
+                "把**使用者自己吃過的餐點**依某個營養素排序。"
+                "使用者問「我吃過什麼蛋白質最高的」「我哪一餐熱量最高」"
+                "「我吃過的東西裡哪個蛋白質密度高」這類針對自己紀錄的排序問題時使用。"
+                "【重要】這類問題**不要用 rank_by_nutrient**——那查的是公開營養"
+                "資料庫，回答的會是使用者沒吃過的食物。實測發生過：問「我吃過什麼"
+                "蛋白質密度最高的食物」，用 rank_by_nutrient 回了柴魚片、小魚干，"
+                "然後說成「你過去一週吃過的」——兩次呼叫都成功、文字也通順，"
+                "但答錯了問題。"
+                "【資料限制】排序的單位是「餐」不是「食物」（紀錄存的是每餐加總，"
+                "逐項明細沒有保留），而且密度只能算「每 100 大卡」不是「每 100 公克」"
+                "（紀錄裡沒有餐點重量）。工具的回傳會附上這些說明，回答時要如實轉達。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nutrient": {
+                        "type": "string",
+                        # 只有四個值：food_logs 沒有纖維、糖、鈉。
+                        # 跟 rank_by_nutrient 的白名單不同，不要混用。
+                        "enum": sorted(ALLOWED_MEAL_NUTRIENTS),
+                        "description": (
+                            "要排序的營養素，預設 protein_g。"
+                            "紀錄裡只有熱量與三大營養素，"
+                            "問纖維、糖、鈉要說明資料不足，不要改查公開資料庫。"
+                        ),
+                    },
+                    "metric": {
+                        "type": "string",
+                        "enum": sorted(ALLOWED_MEAL_METRICS),
+                        "description": (
+                            "排序依據。total（預設）按整餐的絕對量排，"
+                            "回答「哪一餐蛋白質最多」；"
+                            "per_100kcal 按每 100 大卡的含量排，回答「密度最高」。"
+                            "使用者說「密度」「比例」「每卡」時用 per_100kcal。"
+                        ),
+                    },
+                    "days_back": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "往前看幾天，預設 6（含今天共七天）。",
+                    },
+                    "order": {
+                        "type": "string",
+                        "enum": sorted(ALLOWED_ORDERS),
+                        "description": "desc（預設）由高到低；asc 由低到高。",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "description": (
+                            "回傳幾筆，預設 3——刻意跟「列出食物時最多 3 項」對齊，"
+                            "回傳 5 筆的話你會把 5 筆都列出來然後超過字數上限。"
+                        ),
+                    },
+                },
+                "required": [],
             },
         },
     },
