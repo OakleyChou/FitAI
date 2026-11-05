@@ -157,3 +157,52 @@ class ChatResponse(BaseModel):
     answer: str
     degraded: bool = False
     tool_calls: list[ToolCallInfo] = Field(default_factory=list)
+
+
+class FeedbackSource(str, Enum):
+    food_log = "food_log"
+    chat = "chat"
+
+
+class FeedbackKind(str, Enum):
+    too_high = "too_high"
+    too_low = "too_low"
+    wrong_match = "wrong_match"
+    other = "other"
+
+
+class FeedbackCreate(BaseModel):
+    """回報一筆「怪怪的」。
+
+    刻意**不含 user_id**——那由伺服器端決定，跟 /chat 同樣的理由。
+
+    `expected_min` / `expected_max` 是這張表最重要的欄位：**eval 的判準就是它**。
+    要區間而不是單一數字，因為營養估算沒有唯一正確答案，
+    逼使用者給精確值只會讓他亂填。
+    """
+
+    source: FeedbackSource
+    raw_input: str = Field(min_length=1, max_length=500)
+    kind: FeedbackKind
+    system_value: Optional[float] = Field(default=None, ge=0)
+    expected_min: Optional[float] = Field(default=None, ge=0)
+    expected_max: Optional[float] = Field(default=None, ge=0)
+    note: Optional[str] = Field(default=None, max_length=1000)
+    context: dict = Field(default_factory=dict)
+
+
+class Feedback(BaseModel):
+    id: int
+    user_id: int
+    created_at: datetime
+    source: str
+    raw_input: str
+    kind: str
+    system_value: Optional[float] = None
+    expected_min: Optional[float] = None
+    expected_max: Optional[float] = None
+    note: Optional[str] = None
+    context: dict = Field(default_factory=dict)
+    converted_to_eval: bool = False
+
+    model_config = {"from_attributes": True}

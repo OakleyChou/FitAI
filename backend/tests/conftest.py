@@ -23,7 +23,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
-from app.models import FoodLog, User
+from app.models import FeedbackReport, FoodLog, User
 
 
 @pytest.fixture
@@ -41,7 +41,13 @@ def db_session():
     )
     # 只建用得到的表。knowledge_chunks 有 JSONB 與 Vector 欄位，
     # SQLite 建不起來，而這層測試也不需要它。
-    Base.metadata.create_all(engine, tables=[User.__table__, FoodLog.__table__])
+    #
+    # feedback_reports 也有 JSONB（context 欄位），但 SQLAlchemy 在 SQLite 上
+    # 會退化成 TEXT，建得起來也存得進去——跟 Vector 不同，那個完全沒有對應型別。
+    Base.metadata.create_all(
+        engine,
+        tables=[User.__table__, FoodLog.__table__, FeedbackReport.__table__],
+    )
 
     session = sessionmaker(bind=engine)()
     try:

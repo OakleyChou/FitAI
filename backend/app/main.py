@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.errors import register_error_handlers
-from app.routers import chat, food_logs, health
+from app.routers import chat, feedback, food_logs, health
 
 # 全域錯誤處理會把完整 traceback 寫進 log，但沒有設定 logging 的話
 # 那些訊息不會出現在任何地方——降級不等於隱藏。
@@ -35,3 +35,4 @@ register_error_handlers(app)
 app.include_router(health.router)
 app.include_router(food_logs.router)
 app.include_router(chat.router)
+app.include_router(feedback.router)

@@ -3,6 +3,7 @@ from typing import Any, Optional
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy import ForeignKey, Text
+from sqlalchemy import JSON
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -110,3 +111,69 @@ class KnowledgeChunk(Base):
     #         postgresql_ops={"embedding": "vector_cosine_ops"},
     #     ),
     # )
+
+
+class FeedbackReport(Base):
+    """使用者回報「這個數字怪怪的」。
+
+    ## 這不是客服信箱，是 eval 案例的收集器
+
+    這個專案的記錄側沒有 eval（見 docs/pitfalls.md #46），所以每一個 bug 都是
+    使用者手動踩到才發現的：鮮奶茶 50 大卡、泡麵 1420 大卡、五片豬肉片 698 大卡。
+    一個一個修是打地鼠，而且每次只驗證剛改的那一個，不知道有沒有弄壞別的。
+
+    這張表的欄位是**照 eval case 的需要設計的**：
+
+        raw_input                 輸入
+        system_value              系統算出什麼
+        expected_min/max          可接受區間  ← eval 的判準就是這個
+        context                   當時的擷取細節（份量、配到哪一筆、有無佐證）
+
+    累積足夠筆數之後可以直接轉成 evals/dataset 的測試案例，
+    那時「換模型會不會更好」才有辦法用數據回答。
+
+    ## 為什麼新增表不需要 migration
+
+    `create_all` 只建立「不存在」的表，所以新表會被建起來；
+    它不會修改既有表的結構——那才是這個專案的技術債（見 README 已知限制）。
+    既有的資料庫重跑一次 `python -m scripts.init_db` 就會補上這張表。
+    """
+
+    __tablename__ = "feedback_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    # "food_log"（記錄的數字怪）或 "chat"（問答的回答怪）
+    source: Mapped[str] = mapped_column(index=True)
+    # 使用者當初輸入的原話。eval 要用它當輸入，所以必須原樣保留。
+    raw_input: Mapped[str] = mapped_column(Text)
+    # 系統當時給的數字（熱量）。問答類的回報可能沒有數字，所以允許 None。
+    system_value: Mapped[Optional[float]] = mapped_column(nullable=True)
+
+    # 使用者認為合理的區間。**這就是 eval 的判準**——
+    # 刻意要區間而不是單一數字：營養估算本來就沒有唯一正確答案，
+    # 要求使用者給一個精確值會逼他亂填。
+    expected_min: Mapped[Optional[float]] = mapped_column(nullable=True)
+    expected_max: Mapped[Optional[float]] = mapped_column(nullable=True)
+
+    # "too_high" / "too_low" / "wrong_match" / "other"
+    kind: Mapped[str] = mapped_column(index=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # 當時的擷取細節：逐項的份量、配到哪一筆 source_ref、有沒有佐證。
+    # 存 JSON 而不是拆成欄位：這份結構會隨擷取流程演進，
+    # 而回報是**歷史紀錄**，不該因為流程改版就要 migration。
+    #
+    # with_variant 讓它在 Postgres 上是 JSONB、在 SQLite 上是 JSON。
+    # 沒有這個的話整合測試建表就會失敗（SQLiteTypeCompiler 沒有 visit_JSONB），
+    # 而那不是真的限制——我們從來不在這個欄位裡做 JSONB 的運算子查詢，
+    # 只是整包存整包取。knowledge_chunks.meta 不一樣，那裡真的需要 JSONB
+    # （rank_by_nutrient 要對它做數值排序），所以那張表仍然只能在 Postgres 上建。
+    context: Mapped[dict[str, Any]] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), default=dict
+    )
+
+    # 已經轉成 eval 案例的回報標記起來，避免重複處理。
+    converted_to_eval: Mapped[bool] = mapped_column(default=False)
