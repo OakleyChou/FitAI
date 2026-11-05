@@ -21,9 +21,24 @@ from sqlalchemy import text
 
 import app.models  # noqa: F401  import 就會讓 model 註冊到 Base.metadata
 from app.database import Base, SessionLocal, engine
-from app.llm import FOOD_EXTRACTION_PROMPT_NAME
+from app.llm import (
+    FOOD_EXTRACTION_PROMPT_NAME,
+    FOOD_MATCH_PROMPT_NAME,
+    FOOD_PARSE_PROMPT_NAME,
+)
 from app.models import PromptVersion, User
-from app.prompts import FOOD_EXTRACTION_SYSTEM_PROMPT
+from app.prompts import (
+    FOOD_EXTRACTION_SYSTEM_PROMPT,
+    FOOD_MATCH_SYSTEM_PROMPT,
+    FOOD_PARSE_SYSTEM_PROMPT,
+)
+
+# name → 版控裡的基準內容。少了任何一筆，對應的功能會直接 500。
+BASELINE_PROMPTS = {
+    FOOD_EXTRACTION_PROMPT_NAME: FOOD_EXTRACTION_SYSTEM_PROMPT,
+    FOOD_PARSE_PROMPT_NAME: FOOD_PARSE_SYSTEM_PROMPT,
+    FOOD_MATCH_PROMPT_NAME: FOOD_MATCH_SYSTEM_PROMPT,
+}
 
 DEV_USER_ID = 1
 DEV_USER_EMAIL = "test@example.com"
@@ -55,29 +70,24 @@ def init() -> None:
             )
             db.commit()
 
-        # 寫入基準 prompt。少了這筆，POST /food_logs 會直接 500——
+        # 寫入基準 prompt。少了任何一筆，POST /food_logs 會直接 500——
         # 它要靠 get_active_prompt 拿系統提示詞，而那是從資料庫讀的。
         # 這個 bug 在 2026-09-22 的整合測試中踩到：prompt 原本只存在
         # 開發機的資料庫裡，沒有任何程式碼或文件記錄它的內容。
         #
         # 只在「這個 name 完全沒有任何版本」時才寫，所以不會蓋掉
-        # 之後用 add_prompt_version 加上去的新版本。
-        has_prompt = (
-            db.query(PromptVersion)
-            .filter(PromptVersion.name == FOOD_EXTRACTION_PROMPT_NAME)
-            .first()
-            is not None
-        )
-        if not has_prompt:
-            db.add(
-                PromptVersion(
-                    name=FOOD_EXTRACTION_PROMPT_NAME,
-                    version=1,
-                    content=FOOD_EXTRACTION_SYSTEM_PROMPT,
-                    is_active=True,
-                )
+        # 之後用 add_prompt_version 加上去的新版本；
+        # 也讓既有的資料庫在新增 prompt 時可以直接重跑這支腳本補上。
+        for name, content in BASELINE_PROMPTS.items():
+            exists = (
+                db.query(PromptVersion).filter(PromptVersion.name == name).first()
+                is not None
             )
-            db.commit()
+            if not exists:
+                db.add(
+                    PromptVersion(name=name, version=1, content=content, is_active=True)
+                )
+        db.commit()
     finally:
         db.close()
 
@@ -87,4 +97,5 @@ if __name__ == "__main__":
     tables = ", ".join(sorted(Base.metadata.tables))
     print(f"資料庫初始化完成。資料表：{tables}")
     print(f"開發用使用者：id={DEV_USER_ID} ({DEV_USER_EMAIL})")
-    print(f"基準 prompt：{FOOD_EXTRACTION_PROMPT_NAME}")
+    names = "、".join(BASELINE_PROMPTS)
+    print(f"基準 prompt：{len(BASELINE_PROMPTS)} 筆（{names}）")
