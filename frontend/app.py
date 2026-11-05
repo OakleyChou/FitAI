@@ -20,7 +20,7 @@
 import streamlit as st
 
 import api
-from views import chat, log, today
+from views import chat, log, report, today
 
 st.set_page_config(
     page_title="FitAI Coach",
@@ -67,6 +67,7 @@ PAGES = {
     "飲食問答": chat.render,
     "記錄飲食": log.render,
     "今日總覽": today.render,
+    "回報怪怪的": report.render,
 }
 
 

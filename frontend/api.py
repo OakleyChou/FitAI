@@ -158,6 +158,51 @@ def delete_log(log_id: int) -> None:
     _request("DELETE", f"/food_logs/{log_id}", timeout=READ_TIMEOUT)
 
 
+def report_feedback(
+    *,
+    source: str,
+    raw_input: str,
+    kind: str,
+    system_value: float | None = None,
+    expected_min: float | None = None,
+    expected_max: float | None = None,
+    note: str | None = None,
+    context: dict | None = None,
+) -> dict:
+    """回報一筆「這個數字怪怪的」。
+
+    這不是客服信箱——送出去的欄位是照 **eval case 的需要**設計的
+    （見 backend/app/routers/feedback.py）。所以 `context` 要帶上當時的
+    擷取細節：份量、配到哪一筆、有沒有佐證。少了它，這筆回報只能告訴我們
+    「有東西錯了」，不能告訴我們「錯在哪一步」。
+    """
+    return _request(
+        "POST",
+        "/feedback",
+        json={
+            "source": source,
+            "raw_input": raw_input,
+            "kind": kind,
+            "system_value": system_value,
+            "expected_min": expected_min,
+            "expected_max": expected_max,
+            "note": note,
+            "context": context or {},
+        },
+        timeout=READ_TIMEOUT,
+    ).json()
+
+
+def list_feedback(pending_only: bool = False) -> list[dict]:
+    return _request(
+        "GET", "/feedback", params={"pending_only": pending_only}, timeout=READ_TIMEOUT
+    ).json()
+
+
+def delete_feedback(report_id: int) -> None:
+    _request("DELETE", f"/feedback/{report_id}", timeout=READ_TIMEOUT)
+
+
 def day_summary(days_back: int = 0) -> dict:
     """某一天的摘要：逐餐、合計、與目標的差距。
 
