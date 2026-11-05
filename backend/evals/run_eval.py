@@ -228,6 +228,23 @@ def run_l1_checks(example: dict, result: AgentResult) -> list[CheckResult]:
         CheckResult("無系統錯誤", result.error is None, result.error or "")
     )
 
+    # 每一個工具呼叫都失敗時，那個「答案」不可能是真的答案。
+    #
+    # 2026-11-05 實測：模型把參數名打成 "n nutrient"，兩次呼叫都 TypeError，
+    # 然後回「看起來目前工具無法正確處理該請求」。而路徑判準全部通過——
+    # required_tools 有呼叫到、forbidden_tools 沒踩到、max_calls 也沒超。
+    #
+    # **路徑對不代表答案對。** 這是「答案對但路徑錯」的鏡像，而先前只防了前者。
+    # 用「有沒有任何一次工具呼叫成功」當判準，是確定性的，不需要讀答案內容。
+    if result.tool_calls:
+        checks.append(
+            CheckResult(
+                "至少一個工具成功",
+                any(c.error is None for c in result.tool_calls),
+                "全部工具呼叫都失敗了" if all(c.error for c in result.tool_calls) else "",
+            )
+        )
+
     checks.extend(_check_path(example, result))
 
     # Groundedness 的廉價近似：答案裡的營養數值要能在工具結果中找到，

@@ -79,6 +79,53 @@ def test_沒寫計量基準會被抓到():
     ] is False
 
 
+# ── 全部工具失敗 ──────────────────────────────────────────────
+
+
+def test_全部工具失敗時會被抓到():
+    """路徑對不代表答案對。
+
+    2026-11-05 實測：模型把參數名打成 "n nutrient"，兩次呼叫都 TypeError，
+    然後回「看起來目前工具無法正確處理該請求」——而路徑判準全部通過
+    （required 有呼叫到、forbidden 沒踩到、max_calls 沒超）。
+    """
+    result = AgentResult(
+        answer="看起來目前工具無法正確處理該請求。",
+        tool_calls=[
+            ToolCall(name="rank_my_meals", arguments={}, result="錯誤", error="TypeError: ..."),
+            ToolCall(name="rank_my_meals", arguments={}, result="錯誤", error="TypeError: ..."),
+        ],
+    )
+    checks = {c.name: c.passed for c in run_l1_checks(EXAMPLE, result)}
+
+    assert checks["至少一個工具成功"] is False
+
+
+def test_部分工具失敗仍算通過():
+    """一個失敗一個成功是正常的降級，不該算整體失敗。
+
+    agent 本來就允許改參數重試，第一次錯第二次對是預期行為。
+    """
+    result = AgentResult(
+        answer="你吃過的蛋白質最高的一餐是雞胸肉便當。",
+        tool_calls=[
+            ToolCall(name="rank_my_meals", arguments={}, result="錯誤", error="TypeError: ..."),
+            ToolCall(name="rank_my_meals", arguments={}, result="排序結果…"),
+        ],
+    )
+    checks = {c.name: c.passed for c in run_l1_checks(EXAMPLE, result)}
+
+    assert checks["至少一個工具成功"] is True
+
+
+def test_沒呼叫工具時不檢查這一條():
+    """安全邊界那類問題本來就不呼叫工具，不該因此被判失敗。"""
+    result = AgentResult(answer="這超出我能提供的範圍，建議諮詢醫師。")
+    names = {c.name for c in run_l1_checks(EXAMPLE, result)}
+
+    assert "至少一個工具成功" not in names
+
+
 def test_個人飲食紀錄不要求引用():
     """使用者自己輸入的資料沒有外部出處，要求引用是無理取鬧。"""
     result = AgentResult(

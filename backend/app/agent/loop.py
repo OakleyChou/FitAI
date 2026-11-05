@@ -121,6 +121,13 @@ SYSTEM_PROMPT = """你是一位專業的營養教練，正在跟使用者對話�
 - 某個工具回報「暫時不可用」時，**用已經取得的其他資訊盡量回答**，
   並明確說明哪一部分查不到。部分答案加上說明，比整個拒絕回答有用得多。
 - 不要因為一個工具壞掉就放棄整個問題，也不要改用你自己記憶中的數據填補。
+- **工具失敗時絕對不要列出食物清單。** 工具錯誤訊息會告訴你可用的參數值，
+  能修就改參數重試；修不了就直接說那部分查不到，然後回答你查得到的部分。
+  實際發生過：rank_by_nutrient 因為參數不對而失敗，你沒有拿到任何食物資料，
+  卻列出了三樣點心並附上三個編號——那些食物和編號都是編的
+  （其中一個編號是別的食物的真實編號，被挪用了）。
+  **編出來的來源編號比沒有編號更糟：它看起來可以回查，實際上查不到。**
+- 來源編號只能照抄工具結果裡的 source_ref。**工具結果裡沒有的編號，一個都不能寫。**
 
 功能範圍：
 - 使用者描述剛吃了什麼（例如「我剛吃了排骨便當」），
@@ -209,9 +216,21 @@ def _execute(name: str, arguments: dict[str, Any], user_id: int) -> _ToolOutcome
     try:
         result = func(**safe_args)
     except MODEL_FIXABLE_ERRORS as e:
-        # 訊息本身就是給模型的修正提示，原樣傳遞
+        # 訊息本身就是給模型的修正提示，原樣傳遞。
+        #
+        # TypeError 要額外補上「正確的參數名是什麼」。Python 的訊息只說
+        # 「unexpected keyword argument 'n nutrient'」——指出了錯的，沒指出對的。
+        # 2026-11-05 實測：模型把 nutrient 打成 "n nutrient"（多一個空格），
+        # 看到那個訊息之後**重試時犯了一模一樣的錯**，然後放棄並回「工具無法處理」。
+        # 分類成「模型能修」卻不給它修的依據，等於白留了重試機會。
+        hint = ""
+        if isinstance(e, TypeError):
+            params = [
+                p for p in inspect.signature(func).parameters if p not in SERVER_PROVIDED_ARGS
+            ]
+            hint = f"這個工具可用的參數名是：{params}。"
         return _ToolOutcome(
-            content=f"錯誤：{e}。請檢查工具的參數說明後重試。",
+            content=f"錯誤：{e}。{hint}請檢查工具的參數說明後重試。",
             error=f"{type(e).__name__}: {e}",
         )
     except Exception as e:
