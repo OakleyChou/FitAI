@@ -31,6 +31,7 @@ L2 人工標註處理需要判斷力的部分，那批標註之後會成為 judg
 import csv
 import json
 import re
+import sys
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
@@ -308,6 +309,13 @@ def load_dataset() -> list[dict]:
 
 
 def main() -> None:
+    # Windows 的主控台預設是 cp950，而輸出裡有「≤」跟一堆中文。
+    # 不先設 UTF-8 的話，eval 會跑到一半被 UnicodeEncodeError 中斷——
+    # 而中斷點在 print，所以**那次呼叫 LLM 的錢已經花掉了**，結果卻沒存下來。
+    # 這不是顯示問題，是可重現性問題：換一台機器就跑不起來。
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     # 先把測試資料重置成已知狀態。沒有這一步 eval 就不可重現——
     # seed 的日期是相對於執行當下算的，隔天再跑「今天」就沒有紀錄了，
     # 而你會誤以為是 prompt 改壞了。
