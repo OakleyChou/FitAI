@@ -82,16 +82,57 @@ def test_必填參數都有宣告在properties裡(name):
     assert set(fn.get("required", [])) <= set(fn["properties"])
 
 
-def test_兩個排序工具的營養素白名單刻意不同():
+def _enum(tool: str, param: str) -> set[str]:
+    return set(SCHEMA_BY_NAME[tool]["function"]["parameters"]["properties"][param]["enum"])
+
+
+@pytest.mark.parametrize("personal_tool", ["rank_my_meals", "rank_my_foods"])
+def test_個人紀錄的營養素白名單比公開資料庫窄(personal_tool):
     """rank_by_nutrient 查公開資料庫（有纖維糖鈉），
-    rank_my_meals 查使用者紀錄（只有熱量與三大營養素）。
+    另外兩個查使用者紀錄（只有熱量與三大營養素）。
 
     混用的話會出現「問我吃過的纖維最高」→ 查不到欄位 → 模型改去查公開資料庫，
-    然後把資料庫的食物說成使用者吃過的。那正是 rank_my_meals 要防的事。
+    然後把資料庫的食物說成使用者吃過的。那正是個人排序工具要防的事。
     """
-    public = set(SCHEMA_BY_NAME["rank_by_nutrient"]["function"]["parameters"]["properties"]["nutrient"]["enum"])
-    personal = set(SCHEMA_BY_NAME["rank_my_meals"]["function"]["parameters"]["properties"]["nutrient"]["enum"])
+    public = _enum("rank_by_nutrient", "nutrient")
+    personal = _enum(personal_tool, "nutrient")
 
     assert "fiber_g" in public
     assert "fiber_g" not in personal
     assert "calories" in personal
+
+
+def test_只有食物層級能算每一百公克():
+    """`food_logs` 沒有餐點重量，`food_log_items` 有 portion_g。
+
+    這個差別是 food_log_items 存在的主要理由。如果哪天 rank_my_meals 也
+    宣告了 per_100g，那表示有人以為餐有重量——那會算出一個沒有來源的數字。
+    """
+    assert "per_100g" in _enum("rank_my_foods", "metric")
+    assert "per_100g" not in _enum("rank_my_meals", "metric")
+
+
+@pytest.mark.parametrize(
+    "tool, must_mention",
+    [
+        # 三個工具的 description 必須互相指路。少了指路，模型選錯工具之後
+        # 只會回「查不到」，而其實換一個工具就答得出來（pitfalls #45）。
+        ("rank_my_foods", ["rank_my_meals", "rank_by_nutrient"]),
+        ("rank_my_meals", ["rank_my_foods"]),
+    ],
+)
+def test_排序工具的描述要互相指路(tool, must_mention):
+    desc = SCHEMA_BY_NAME[tool]["function"]["description"]
+
+    for other in must_mention:
+        assert other in desc, f"{tool} 的描述沒有提到 {other}"
+
+
+def test_描述不可再聲稱逐項明細沒有保留():
+    """2026-11-06 明細落地之後，這句話變成假的。
+
+    description 是送給模型的 prompt，模型會把它當事實轉述給使用者。
+    限制的敘述跟程式一樣會過期，差別是它過期時不會報錯。
+    """
+    for tool in ("rank_my_meals", "rank_my_foods"):
+        assert "明細沒有保留" not in SCHEMA_BY_NAME[tool]["function"]["description"]

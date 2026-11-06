@@ -5,7 +5,7 @@ from sqlalchemy import Enum as SqlEnum
 from sqlalchemy import ForeignKey, Text
 from sqlalchemy import JSON
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -41,6 +41,66 @@ class FoodLog(Base):
     fat_g: Mapped[float] = mapped_column()
     raw_input_text: Mapped[Optional[str]] = mapped_column(nullable=True)
     input_type: Mapped[InputType] = mapped_column(SqlEnum(InputType))
+
+    # 逐項明細。合計欄位（上面那四個）刻意保留，不改成每次從明細加總：
+    #   1. 2026-11 之前的紀錄沒有明細，加總會變成 0——那是無聲的資料損壞。
+    #   2. PUT /food_logs/{id} 讓使用者手動修正合計，那時明細就跟合計不一致了。
+    #      兩者不一致是真實狀態，不該被隱藏成「其中一個是對的」。
+    # 所以合計是權威值，明細是補充。查詢明細的工具必須說明涵蓋率（見 rank_my_foods）。
+    items: Mapped[list["FoodLogItem"]] = relationship(
+        back_populates="food_log",
+        # ORM 層的 cascade，不加 passive_deletes。
+        # 資料庫層的 ON DELETE CASCADE 只在 Postgres 生效；測試用的 SQLite
+        # 預設不強制外鍵，所以如果只靠資料庫，測試裡刪掉 log 會留下孤兒明細，
+        # 而測試會通過——真正的行為差異只在 production 出現。兩層都要有。
+        cascade="all, delete-orphan",
+        order_by="FoodLogItem.id",
+    )
+
+
+class FoodLogItem(Base):
+    """一筆飲食紀錄裡的單一食物項目。
+
+    ## 為什麼存數值而不只存食藥署編號
+
+    數值在這裡是**快照**，不是外鍵。食藥署資料庫會改版（目前是 2025 版），
+    如果只存 `source_ref` 再 join 回 knowledge_chunks，明年資料更新之後
+    回頭查今天的紀錄，數字會無聲地變掉——而使用者看到的那個數字必須重現得出來。
+    編號仍然存，用來回溯「當時配到哪一筆」。
+
+    ## grounded 為什麼是獨立欄位而不是 `source_ref is not None`
+
+    看起來可以推導，但推不出來：名稱守門（app/extraction.py 的 name_matches）
+    會在檢索有結果、但名稱對不上時**拒絕**那個配對，此時數值改用 LLM 估算，
+    而編號可能仍然留著當線索。`grounded` 記的是「這個數字的來源」，
+    那是顯示給使用者的事實（✅/⚠️），不能靠推導。
+    """
+
+    __tablename__ = "food_log_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    food_log_id: Mapped[int] = mapped_column(
+        ForeignKey("food_logs.id", ondelete="CASCADE"), index=True
+    )
+
+    name: Mapped[str] = mapped_column()
+    # 使用者說的份量（公克）。這是「哪樣食物蛋白質密度最高」能算每 100 公克的關鍵——
+    # food_logs 沒有這個欄位，所以餐的層級只能算每 100 大卡。
+    portion_g: Mapped[float] = mapped_column()
+
+    calories: Mapped[float] = mapped_column()
+    protein_g: Mapped[float] = mapped_column()
+    carbs_g: Mapped[float] = mapped_column()
+    fat_g: Mapped[float] = mapped_column()
+
+    grounded: Mapped[bool] = mapped_column(default=False)
+    source_ref: Mapped[Optional[str]] = mapped_column(nullable=True, index=True)
+    # 資料庫裡的正式名稱，跟使用者的說法常常不同（「無糖鮮奶茶」vs「鮮奶茶(無糖)」）。
+    # 存下來才能事後判斷配對對不對——這是回報頁要用的資訊。
+    db_name: Mapped[Optional[str]] = mapped_column(nullable=True)
+    note: Mapped[str] = mapped_column(default="")
+
+    food_log: Mapped["FoodLog"] = relationship(back_populates="items")
   
 
 class WeightLog(Base):

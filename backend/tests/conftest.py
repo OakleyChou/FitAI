@@ -23,7 +23,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
-from app.models import FeedbackReport, FoodLog, User
+from app.models import FeedbackReport, FoodLog, FoodLogItem, User
 
 
 @pytest.fixture
@@ -46,7 +46,12 @@ def db_session():
     # 會退化成 TEXT，建得起來也存得進去——跟 Vector 不同，那個完全沒有對應型別。
     Base.metadata.create_all(
         engine,
-        tables=[User.__table__, FoodLog.__table__, FeedbackReport.__table__],
+        tables=[
+            User.__table__,
+            FoodLog.__table__,
+            FoodLogItem.__table__,
+            FeedbackReport.__table__,
+        ],
     )
 
     session = sessionmaker(bind=engine)()

@@ -140,7 +140,24 @@ def test_輸出一定附上單位是餐的說明():
     out = _rank_meals([_log("午餐", 700, 45)], "protein_g", "total", "desc", 5, 6)
 
     assert "一餐" in out
-    assert "逐項明細沒有保留" in out
+    # 要指路，不能只說「做不到」。只講限制的話模型會直接回「查不到」，
+    # 而其實換一個工具就答得出來。
+    assert "rank_my_foods" in out
+
+
+def test_不可再聲稱逐項明細沒有保留():
+    """這句話 2026-11-06 起是假的，而它是**隨工具結果送給模型的**。
+
+    限制的敘述跟程式一樣會過期，差別是它過期時不會報錯：
+    模型會把那句話當事實轉述給使用者，變成一個很有自信的錯誤說明。
+    用否定斷言釘住它——只斷言「有講限制」的測試擋不住這種情況，
+    因為過期的限制敘述也是一段限制敘述。
+    """
+    for metric in ("total", "per_100kcal"):
+        out = _rank_meals([_log("午餐", 700, 45)], "protein_g", metric, "desc", 5, 6)
+
+        assert "逐項明細沒有保留" not in out
+        assert "明細沒有保留" not in out
 
 
 def test_密度模式額外說明是每100大卡():

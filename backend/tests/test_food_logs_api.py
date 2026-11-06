@@ -13,6 +13,7 @@ import pytest
 
 from app.llm import FoodItem, FoodLogExtraction
 from app.models import FoodLog as FoodLogModel
+from app.models import FoodLogItem as FoodLogItemModel
 from app.routers import food_logs as food_logs_module
 from app.schemas import InputType
 
@@ -107,16 +108,62 @@ def test_回應帶上逐項明細與佐證狀態(client, user, db_session, fake_
     assert item["portion_g"] == 100.0
 
 
-def test_明細不落地到資料庫(client, user, db_session, fake_llm):
-    """food_logs 表只存合計。
+def test_明細會落地到資料庫(client, user, db_session, fake_llm):
+    """明細存進 food_log_items，合計仍然留在 food_logs。
 
-    明細不存是刻意的：那需要加欄位，而這個專案用 create_all 沒有 migration。
+    這個測試 2026-11-06 之前斷言的是相反的事（「明細不落地」），
+    理由寫的是「那需要加欄位，而這個專案用 create_all 沒有 migration」。
+    那個理由只對一半：create_all 不會修改既有表，但**會建立不存在的表**，
+    所以新增子表不需要 migration。一個站不住腳的理由被寫成註解之後，
+    就沒有人再質疑它——留著這段歷史是為了記住這件事。
     """
     client.post("/food_logs", json={"user_id": 1, "raw_text": "雞胸肉 100 公克"})
 
     row = db_session.query(FoodLogModel).one()
+    # 合計仍然是權威值，不改成每次從明細加總（見 models.py 的說明）
     assert row.calories == 165
-    assert not hasattr(row, "items")
+
+    assert len(row.items) == 1
+    item = row.items[0]
+    assert item.name == "雞胸肉"
+    assert item.portion_g == 100.0
+    assert item.calories == 165
+    # 佐證狀態要落地，不能靠 source_ref is not None 推導：
+    # 名稱守門可能在留著編號的情況下改用估算值（見 models.py）。
+    assert item.grounded is True
+    assert item.source_ref == "I0410101"
+    assert item.db_name == "雞里肌肉"
+
+
+def test_刪掉紀錄會一起刪掉明細(client, user, db_session, fake_llm):
+    """孤兒明細會讓之後每一次「哪樣食物最高」都多算一筆查不到來源的資料。
+
+    ORM 的 cascade 跟資料庫的 ON DELETE CASCADE 兩層都設了。
+    這個測試跑在 SQLite 上，而 SQLite 預設**不強制外鍵**——
+    所以它驗的是 ORM 那一層。只靠資料庫的話，這裡會通過而 production 不會。
+    """
+    log_id = client.post(
+        "/food_logs", json={"user_id": 1, "raw_text": "雞胸肉 100 公克"}
+    ).json()["id"]
+    assert db_session.query(FoodLogItemModel).count() == 1
+
+    assert client.delete(f"/food_logs/{log_id}").status_code == 204
+
+    assert db_session.query(FoodLogModel).count() == 0
+    assert db_session.query(FoodLogItemModel).count() == 0
+
+
+def test_單筆查詢會帶出明細(client, user, db_session, fake_llm):
+    """清單端點刻意不帶明細，單筆要帶——要核對數字的人會點進單一筆。"""
+    log_id = client.post(
+        "/food_logs", json={"user_id": 1, "raw_text": "雞胸肉 100 公克"}
+    ).json()["id"]
+
+    detail = client.get(f"/food_logs/{log_id}").json()
+    assert [i["name"] for i in detail["items"]] == ["雞胸肉"]
+
+    # 清單不帶 items，避免一次查詢把上百筆子資料列一起拖出來
+    assert "items" not in client.get("/food_logs").json()[0]
 
 
 def test_原始輸入會一起保留(client, user, db_session, fake_llm):

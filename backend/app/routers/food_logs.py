@@ -7,6 +7,7 @@ from app.database import get_db
 from app.deps import get_current_user_id
 from app.llm import extract_food_log
 from app.models import FoodLog as FoodLogModel
+from app.models import FoodLogItem as FoodLogItemModel
 from app.models import User as UserModel
 from app.nutrition import local_today, summarize_day
 from app.rag.qa import _local_day_range_utc
@@ -16,6 +17,7 @@ from app.schemas import (
     FoodLog,
     FoodLogCreate,
     FoodLogCreated,
+    FoodLogDetail,
     FoodLogUpdate,
     InputType,
 )
@@ -46,12 +48,34 @@ def create_food_log(payload: FoodLogCreate, db: Session = Depends(get_db)):
         raw_input_text=payload.raw_text,
         input_type=InputType.text,
     )
+    # 逐項明細跟著落地。注意這裡用的是 relationship 而不是先 commit 再分開 insert：
+    # 那樣會有一個中間狀態——紀錄存在、明細還沒存進去。如果第二段 insert 失敗，
+    # 資料庫裡就留下一筆「合計有值但沒有明細」的紀錄，而那跟 11 月之前的舊紀錄
+    # 長得一模一樣，事後完全分不出是歷史資料還是寫壞的。一次 commit 就沒有這個狀態。
+    new_log.items = [
+        FoodLogItemModel(
+            name=item.name,
+            portion_g=item.portion_g,
+            calories=item.calories,
+            protein_g=item.protein_g,
+            carbs_g=item.carbs_g,
+            fat_g=item.fat_g,
+            grounded=item.grounded,
+            source_ref=item.source_ref,
+            db_name=item.db_name,
+            note=item.note,
+        )
+        for item in extraction.items
+    ]
+
     db.add(new_log)
     db.commit()
     db.refresh(new_log)  # 把自動產生的id 同步回new_log
 
-    # 回應帶上逐項明細與佐證狀態。food_logs 表只存合計，明細不落地——
-    # 但剛記錄完是使用者最可能核對的時刻，這時不給他看就沒有第二次機會了。
+    # 回應的明細直接用 extraction 的結果，不從 new_log.items 讀回來。
+    # 兩者內容相同，但 extraction 是這次呼叫的真實輸出——
+    # 從資料庫讀回來的話，萬一寫入漏了欄位，回應看起來仍然正常，
+    # 而使用者核對的是回應。要讓寫入的錯在測試裡現形，就不能拿回應去掩蓋它。
     return FoodLogCreated(
         **{c.name: getattr(new_log, c.name) for c in new_log.__table__.columns},
         items=[ExtractedItemInfo(**item.model_dump()) for item in extraction.items],
@@ -107,9 +131,15 @@ def get_day_summary(
     return summarize_day(logs, user, day)
 
 
-@router.get("/{food_log_id}", response_model=FoodLog)
+@router.get("/{food_log_id}", response_model=FoodLogDetail)
 def get_food_log(food_log_id: int, db: Session = Depends(get_db)):
-    """查詢單一筆飲食紀錄。"""
+    """查詢單一筆飲食紀錄，含逐項明細。
+
+    2026-11-06 之前存進來的紀錄沒有明細，`items` 會是空清單。
+    那不是錯誤，但也不表示「這餐只有一個項目」——呼叫端要分得出
+    「沒有明細」和「明細是空的」。這裡用空清單表示前者是可接受的妥協，
+    因為合計欄位永遠有值；真正需要分辨的是排序工具，那裡有涵蓋率說明。
+    """
     query = db.query(FoodLogModel).filter(FoodLogModel.id == food_log_id)
     result = query.first()
     if result is not None:

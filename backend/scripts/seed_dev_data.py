@@ -13,13 +13,17 @@
 - **刻意空兩天**（第 4 天與第 9 天沒有任何紀錄），用來驗證
   summarize_food_logs 的日平均是拿「有紀錄的天數」當分母，
   而不是拿「區間天數」——後者會把忘記記錄的日子算成吃了 0 大卡。
+- **只有最近兩天的六餐有逐項明細**（見 MEAL_ITEMS）。這不是偷懶：
+  逐項明細 2026-11-06 才落地，真實資料庫裡就是「新紀錄有、舊紀錄沒有」的狀態，
+  而 `rank_my_foods` 必須對使用者說出涵蓋率。假資料如果每一餐都有明細，
+  那條涵蓋率的路徑就永遠不會被執行到，而它正是最容易說錯話的地方。
 """
 
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from app.database import SessionLocal
-from app.models import FoodLog, User
+from app.models import FoodLog, FoodLogItem, User
 from app.schemas import InputType
 
 LOCAL_TZ = ZoneInfo("Asia/Taipei")
@@ -71,6 +75,47 @@ MEALS = [
 ]
 
 
+# 逐項明細，key 是 (幾天前, 幾點)，對得上 MEALS 的前兩個欄位。
+# 值是 (名稱, 份量公克, 熱量, 蛋白質, 碳水, 脂肪, 有無食藥署佐證, 資料庫名稱)。
+#
+# 只給最近兩天的六餐——理由見模組 docstring。
+#
+# 數值是**刻意加總等於 MEALS 那一列的合計**的，下面 seed() 會驗證。
+# 不驗的話，明細跟合計可以悄悄分歧，而畫面上兩個數字都看起來正常——
+# 那正是這個專案一直在處理的那類錯誤（pitfalls 第一節）。
+MEAL_ITEMS: dict[tuple[int, int], list[tuple]] = {
+    (0, 8): [
+        # 複合餐點，食藥署資料庫沒有 → 無佐證。這一類是誤差的主要來源。
+        ("鮪魚蛋吐司", 150, 300, 16, 32, 12, False, None),
+        ("無糖豆漿", 260, 120, 6, 13, 4, True, "豆漿(無糖)"),
+    ],
+    (0, 12): [
+        ("雞胸肉便當", 450, 660, 40, 74, 17, False, None),
+        ("燙青菜", 150, 20, 2, 4, 1, True, "青江菜(水耕)"),
+    ],
+    (0, 19): [
+        # 蛋白質密度最高的一項，用來讓 rank_my_foods 的 per_100g 有明確答案
+        ("烤鯖魚", 100, 270, 24, 0, 20, True, "鯖魚"),
+        ("白飯", 100, 180, 3, 40, 1, True, "白飯"),
+        ("味噌豆腐湯", 200, 70, 7, 2, 1, False, None),
+    ],
+    (1, 8): [
+        ("蛋餅", 120, 360, 12, 39, 15, False, None),
+        # 跨兩天重複出現，用來觸發 rank_my_foods 的去重與「吃過 N 次」
+        ("無糖豆漿", 260, 120, 6, 13, 4, True, "豆漿(無糖)"),
+    ],
+    (1, 12): [
+        ("糙米飯", 180, 230, 5, 50, 2, True, "糙米飯"),
+        ("清蒸魚", 120, 240, 26, 2, 12, True, "鱈魚"),
+        ("炒時蔬", 150, 150, 5, 20, 2, False, None),
+    ],
+    (1, 19): [
+        ("雞胸肉", 120, 190, 26, 0, 8, True, "雞胸肉"),
+        ("生菜沙拉", 150, 60, 3, 10, 1, False, None),
+        ("油醋醬", 30, 250, 3, 20, 15, False, None),
+    ],
+}
+
 def _to_db_datetime(days_ago: int, hour: int) -> datetime:
     """把「幾天前的台北時間幾點」轉成資料庫存的 naive UTC datetime。
 
@@ -95,22 +140,70 @@ def seed() -> int:
         if not user.current_weight_kg:
             user.current_weight_kg = 70.0
 
-        # 先刪再寫，保持冪等
+        # 先刪再寫，保持冪等。
+        #
+        # 明細要自己先刪：`query(...).delete()` 是**整批 SQL DELETE**，
+        # 不會經過 ORM，所以 relationship 上的 cascade 完全不會執行。
+        # Postgres 的 ON DELETE CASCADE 會補上，但那表示冪等性依賴
+        # 資料庫方言——換個後端就留下孤兒資料列。明確刪比較便宜。
+        old_ids = [
+            row[0]
+            for row in db.query(FoodLog.id).filter(FoodLog.user_id == DEV_USER_ID).all()
+        ]
+        if old_ids:
+            db.query(FoodLogItem).filter(FoodLogItem.food_log_id.in_(old_ids)).delete(
+                synchronize_session=False
+            )
         db.query(FoodLog).filter(FoodLog.user_id == DEV_USER_ID).delete()
 
-        logs = [
-            FoodLog(
-                user_id=DEV_USER_ID,
-                logged_at=_to_db_datetime(days_ago, hour),
-                calories=kcal,
-                protein_g=protein,
-                carbs_g=carbs,
-                fat_g=fat,
-                raw_input_text=text,
-                input_type=InputType.text,
+        logs = []
+        for days_ago, hour, text, kcal, protein, carbs, fat in MEALS:
+            specs = MEAL_ITEMS.get((days_ago, hour), [])
+            items = [
+                FoodLogItem(
+                    name=name,
+                    portion_g=float(portion),
+                    calories=float(i_kcal),
+                    protein_g=float(i_p),
+                    carbs_g=float(i_c),
+                    fat_g=float(i_f),
+                    grounded=grounded,
+                    db_name=db_name,
+                )
+                for name, portion, i_kcal, i_p, i_c, i_f, grounded, db_name in specs
+            ]
+
+            # 明細的加總必須等於這一列的合計。不相等就是我填錯了數字，
+            # 而假資料填錯會讓之後每一次 eval 的基準都是錯的——
+            # 那種錯誤查起來非常久，因為程式看起來完全正常。
+            if items:
+                for field, expected in (
+                    ("calories", kcal),
+                    ("protein_g", protein),
+                    ("carbs_g", carbs),
+                    ("fat_g", fat),
+                ):
+                    got = sum(getattr(it, field) for it in items)
+                    if abs(got - expected) > 0.01:
+                        raise ValueError(
+                            f"MEAL_ITEMS[{(days_ago, hour)}] 的 {field} 加總是 {got}，"
+                            f"但 MEALS 那一列寫 {expected}。兩者必須一致。"
+                        )
+
+            logs.append(
+                FoodLog(
+                    user_id=DEV_USER_ID,
+                    logged_at=_to_db_datetime(days_ago, hour),
+                    calories=kcal,
+                    protein_g=protein,
+                    carbs_g=carbs,
+                    fat_g=fat,
+                    raw_input_text=text,
+                    input_type=InputType.text,
+                    items=items,
+                )
             )
-            for days_ago, hour, text, kcal, protein, carbs, fat in MEALS
-        ]
+
         db.add_all(logs)
         db.commit()
         return len(logs)
@@ -120,4 +213,7 @@ def seed() -> int:
 
 if __name__ == "__main__":
     count = seed()
+    detailed = len(MEAL_ITEMS)
+    items = sum(len(v) for v in MEAL_ITEMS.values())
     print(f"seeded {count} food logs for user {DEV_USER_ID}")
+    print(f"  其中 {detailed} 餐有逐項明細，共 {items} 個項目（rank_my_foods 用）")

@@ -1,7 +1,7 @@
 """工具的 JSON Schema，以及名稱到函式的派送表。
 
 送給模型的 `tools` 參數需要 JSON Schema。這裡**手寫**而不是從型別註記自動產生：
-四個工具的規模下，手寫一份常數比引入自動化更好讀，而且每個欄位的 description
+六個工具的規模下，手寫一份常數比引入自動化更好讀，而且每個欄位的 description
 都是寫給模型看的指令，值得逐字斟酌——自動產生反而會讓人忽略這件事。
 
 description 的內容濃縮自 tools.py 的 docstring。兩邊要同步維護是這個做法的代價，
@@ -12,12 +12,15 @@ from typing import Any, Callable
 
 from app.agent.tools import (
     ALLOWED_CATEGORIES,
+    ALLOWED_FOOD_METRICS,
+    ALLOWED_FOOD_NUTRIENTS,
     ALLOWED_MEAL_METRICS,
     ALLOWED_MEAL_NUTRIENTS,
     ALLOWED_NUTRIENTS,
     ALLOWED_ORDERS,
     query_food_logs,
     rank_by_nutrient,
+    rank_my_foods,
     rank_my_meals,
     search_nutrition,
     summarize_food_logs,
@@ -32,6 +35,7 @@ TOOL_REGISTRY: dict[str, Callable[..., Any]] = {
     "rank_by_nutrient": rank_by_nutrient,
     "summarize_food_logs": summarize_food_logs,
     "rank_my_meals": rank_my_meals,
+    "rank_my_foods": rank_my_foods,
 }
 
 # user_id 不放進 schema——它由伺服器端從登入狀態決定，不該讓模型指定。
@@ -185,9 +189,10 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "蛋白質密度最高的食物」，用 rank_by_nutrient 回了柴魚片、小魚干，"
                 "然後說成「你過去一週吃過的」——兩次呼叫都成功、文字也通順，"
                 "但答錯了問題。"
-                "【資料限制】排序的單位是「餐」不是「食物」（紀錄存的是每餐加總，"
-                "逐項明細沒有保留），而且密度只能算「每 100 大卡」不是「每 100 公克」"
-                "（紀錄裡沒有餐點重量）。工具的回傳會附上這些說明，回答時要如實轉達。"
+                "【分工】排序的單位是「餐」不是「食物」（紀錄存的是每餐加總），"
+                "而且密度只能算「每 100 大卡」不是「每 100 公克」（food_logs 沒有餐點重量）。"
+                "使用者問「哪樣**食物**」或要「每 100 公克」的密度時，改用 rank_my_foods。"
+                "工具的回傳會附上這些說明，回答時要如實轉達。"
             ),
             "parameters": {
                 "type": "object",
@@ -209,8 +214,10 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "description": (
                             "排序依據。total（預設）按整餐的絕對量排，"
                             "回答「哪一餐蛋白質最多」；"
-                            "per_100kcal 按每 100 大卡的含量排，回答「密度最高」。"
-                            "使用者說「密度」「比例」「每卡」時用 per_100kcal。"
+                            "per_100kcal 按每 100 大卡的含量排。"
+                            "注意：使用者單說「密度」時，通常指的是每 100 公克，"
+                            "那要用 rank_my_foods。這裡的 per_100kcal 只在"
+                            "使用者明確說「每大卡」「相對熱量」時使用。"
                         ),
                     },
                     "days_back": {
@@ -231,6 +238,71 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
                             "回傳幾筆，預設 3——刻意跟「列出食物時最多 3 項」對齊，"
                             "回傳 5 筆的話你會把 5 筆都列出來然後超過字數上限。"
                         ),
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "rank_my_foods",
+            "description": (
+                "把**使用者吃過的單樣食物**依某個營養素排序。"
+                "使用者問「我吃過哪樣食物蛋白質最高」「我吃的東西裡哪一樣蛋白質密度最高」"
+                "這類針對**單一食物**（不是整餐）的問題時使用。"
+                "【三個排序工具的分工】rank_my_foods 排使用者吃過的單樣食物，"
+                "能算每 100 公克的密度；rank_my_meals 排整餐，只能算每 100 大卡；"
+                "rank_by_nutrient 查的是公開營養資料庫，跟使用者吃了什麼無關——"
+                "**絕對不要用它回答「我吃過」的問題**。"
+                "【涵蓋率】逐項明細 2026-11-06 才開始落地，更早的紀錄只有整餐合計，"
+                "這個工具看不到。回傳會寫出「共 N 筆紀錄，其中 M 筆有明細」，"
+                "**那一行一定要轉達給使用者**——不講的話，答案會被理解成涵蓋全部紀錄。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nutrient": {
+                        "type": "string",
+                        # 跟 rank_by_nutrient 的白名單不同：明細也只有熱量與三大營養素。
+                        "enum": sorted(ALLOWED_FOOD_NUTRIENTS),
+                        "description": (
+                            "要排序的營養素，預設 protein_g。"
+                            "明細裡只有熱量與三大營養素，"
+                            "問纖維、糖、鈉要說明資料不足，不要改查公開資料庫。"
+                        ),
+                    },
+                    "metric": {
+                        "type": "string",
+                        "enum": sorted(ALLOWED_FOOD_METRICS),
+                        "description": (
+                            "排序依據。"
+                            "**使用者只說「密度」「濃度」「含量高」時用 per_100g**"
+                            "（預設）——營養學上的密度預設就是每 100 公克，"
+                            "食藥署資料庫本身也是這個基準。不要改用 per_100kcal。"
+                            "per_100kcal 只在使用者明確說「每大卡」「相對熱量」"
+                            "「熱量效益」時使用。"
+                            "total 是吃進去的絕對量，回答「哪樣食物吃最多」。"
+                            "nutrient='calories' 不能配 per_100kcal（恆等於 100），"
+                            "那個組合會被拒絕。"
+                        ),
+                    },
+                    "days_back": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "往前看幾天，預設 6（含今天共七天）。",
+                    },
+                    "order": {
+                        "type": "string",
+                        "enum": sorted(ALLOWED_ORDERS),
+                        "description": "desc（預設）由高到低；asc 由低到高。",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "description": "回傳幾樣，預設 3——跟「列出食物時最多 3 項」對齊。",
                     },
                 },
                 "required": [],

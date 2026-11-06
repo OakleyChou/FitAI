@@ -70,18 +70,39 @@ class ExtractedItemInfo(BaseModel):
     db_name: Optional[str] = None
     note: str = ""
 
+    # 同一個形狀同時要能從 extraction 的 FoodItem（Pydantic）和
+    # food_log_items 的資料列（SQLAlchemy）轉過來，所以要開 from_attributes。
+    model_config = {"from_attributes": True}
+
 
 class FoodLogCreated(FoodLog):
     """POST /food_logs 的回應：存好的紀錄 + 這次擷取的逐項明細。
 
-    比 FoodLog 多的欄位都是**不落地**的——food_logs 表只存合計。
-    不另外存是刻意的：那需要加資料表欄位，而這個專案用 create_all 沒有
-    migration（見 pitfalls，create_all 不會修改既有表結構）。
-    而且明細最有價值的時刻就是剛記錄完、使用者還記得自己吃了什麼的時候。
+    明細**會落地**（food_log_items 表）。2026-11-06 之前不落地，
+    理由是「那需要加資料表，而這個專案用 create_all 沒有 migration」——
+    那個理由只對一半：create_all 不會修改既有表，但**會建立不存在的表**。
+    所以新增一張子表不需要 migration，改既有表才需要。
+    這個誤判讓「哪樣食物蛋白質最高」整整三個月答不出來。
+
+    `grounded_count` 仍然只在這裡出現：它是從 items 算出來的，不存欄位，
+    免得明細改了而計數沒跟著改。
     """
 
     items: list[ExtractedItemInfo] = Field(default_factory=list)
     grounded_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class FoodLogDetail(FoodLog):
+    """GET /food_logs/{id} 的回應：紀錄 + 落地的逐項明細。
+
+    清單端點（GET /food_logs）刻意**不**帶明細：那會讓一次查詢的回應
+    從 36 筆變成 36 筆加上上百筆子資料列，而清單的用途是列出來給人選，
+    不是核對數字。要核對的人會點進單一筆。
+    """
+
+    items: list[ExtractedItemInfo] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
